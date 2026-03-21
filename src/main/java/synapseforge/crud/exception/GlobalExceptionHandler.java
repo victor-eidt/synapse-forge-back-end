@@ -2,7 +2,7 @@ package synapseforge.crud.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
+//Deals with Exceptions
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
