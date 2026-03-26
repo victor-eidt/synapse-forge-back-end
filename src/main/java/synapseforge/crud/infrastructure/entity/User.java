@@ -23,12 +23,15 @@ public class User {
     private String nome;
     private String email;
     private String senha;
-
+    private String cpf;
+    private String telefone;
     private Role role;
 
-    private String empresaId;
+    private int tentativasLogin = 0;
 
     private boolean ativo;
 
     private LocalDateTime criadoEm;
+    private LocalDateTime bloqueadoEm;
+    private LocalDateTime AtualizadoEm;
 }
