@@ -34,4 +34,7 @@ public class User {
     private LocalDateTime criadoEm;
     private LocalDateTime bloqueadoEm;
     private LocalDateTime AtualizadoEm;
+
+    private String resetToken;
+    private LocalDateTime resetTokenExpira;
 }
