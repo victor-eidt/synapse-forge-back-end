@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
+import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 
@@ -23,7 +24,9 @@ public class UserService {
         user.setNome(dto.getNome());
         user.setEmail(dto.getEmail());
         user.setSenha(dto.getSenha());
-        user.setRole(dto.getRole());
+        user.setCpf(dto.getCpf());
+        user.setTelefone(dto.getTelefone());
+        user.setRole(dto.getRole() != null ? dto.getRole() : Role.CLIENTE);
 
         return user;
     }
@@ -38,12 +41,10 @@ public class UserService {
     }
 
     public User criar(User user) {
-        //garantir que emails iguais sejam cadastrados no sistema
         if (repository.findByEmail(user.getEmail()).isPresent()) {
             throw new RuntimeException("Email já cadastrado");
         }
 
-        // regra de negócio
         user.setCriadoEm(LocalDateTime.now());
         user.setAtivo(true);
 
@@ -59,12 +60,13 @@ public class UserService {
     }
 
     public User atualizar(String id, User userAtualizado) {
-
         User user = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
         user.setNome(userAtualizado.getNome());
         user.setEmail(userAtualizado.getEmail());
+        user.setCpf(userAtualizado.getCpf());
+        user.setTelefone(userAtualizado.getTelefone());
         user.setRole(userAtualizado.getRole());
 
         return repository.save(user);
@@ -75,14 +77,14 @@ public class UserService {
     }
 
     public List<User> criarVarios(List<User> users) {
-
         users.forEach(user -> {
             user.setCriadoEm(LocalDateTime.now());
             user.setAtivo(true);
+            if (user.getRole() == null) {
+                user.setRole(Role.CLIENTE);
+            }
         });
 
         return repository.saveAll(users);
     }
-
-
 }

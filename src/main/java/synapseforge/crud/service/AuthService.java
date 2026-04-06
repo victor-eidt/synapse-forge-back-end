@@ -37,7 +37,7 @@ public class AuthService {
         user.setSenha(senhaCriptografada);
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
-        user.setRole(dto.getRole());
+        user.setRole(dto.getRole() != null ? dto.getRole() : synapseforge.crud.infrastructure.entity.Role.CLIENTE);
         user.setAtivo(true);
         user.setCriadoEm(LocalDateTime.now());
         user.setTentativasLogin(0);
