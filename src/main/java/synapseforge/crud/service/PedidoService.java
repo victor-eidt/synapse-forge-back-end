@@ -18,8 +18,9 @@ public class PedidoService {
     @Autowired
     private PedidoRepository repository;
 
-    public Pedido toEntity(PedidoRequestDTO dto) {
+    public Pedido toEntity(PedidoRequestDTO dto, String usuarioId) {
         Pedido pedido = new Pedido();
+        pedido.setUsuarioId(usuarioId);
         pedido.setCliente(dto.getCliente());
         pedido.setProjeto(dto.getProjeto());
         pedido.setDescricao(dto.getDescricao());
@@ -47,20 +48,22 @@ public class PedidoService {
         return repository.save(pedido);
     }
 
-    public List<Pedido> listar() {
-        return repository.findAll();
+    public List<Pedido> listar(String usuarioId) {
+        return repository.findByUsuarioId(usuarioId);
     }
 
-    public List<Pedido> listarPorStatus(StatusPedido status) {
-        return repository.findByStatus(status);
+    public List<Pedido> listarPorStatus(String usuarioId, StatusPedido status) {
+        return repository.findByUsuarioIdAndStatus(usuarioId, status);
     }
 
-    public Optional<Pedido> buscarPorId(String id) {
-        return repository.findById(id);
+    public Optional<Pedido> buscarPorId(String id, String usuarioId) {
+        return repository.findById(id)
+                .filter(p -> usuarioId.equals(p.getUsuarioId()));
     }
 
-    public Pedido avancarStatus(String id) {
+    public Pedido avancarStatus(String id, String usuarioId) {
         Pedido pedido = repository.findById(id)
+                .filter(p -> usuarioId.equals(p.getUsuarioId()))
                 .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
 
         StatusPedido[] valores = StatusPedido.values();
@@ -75,8 +78,9 @@ public class PedidoService {
         return repository.save(pedido);
     }
 
-    public Pedido atualizar(String id, Pedido dados) {
+    public Pedido atualizar(String id, String usuarioId, Pedido dados) {
         Pedido pedido = repository.findById(id)
+                .filter(p -> usuarioId.equals(p.getUsuarioId()))
                 .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
         pedido.setCliente(dados.getCliente());
         pedido.setProjeto(dados.getProjeto());
@@ -86,8 +90,9 @@ public class PedidoService {
         return repository.save(pedido);
     }
 
-    public void deletar(String id) {
+    public void deletar(String id, String usuarioId) {
         repository.findById(id)
+                .filter(p -> usuarioId.equals(p.getUsuarioId()))
                 .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
         repository.deleteById(id);
     }

@@ -21,6 +21,8 @@ public class Pedido {
     @Id
     private String id;
 
+    private String usuarioId;
+
     private String cliente;
     private String projeto;
     private String descricao;
