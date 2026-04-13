@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface PedidoRepository extends MongoRepository<Pedido, String> {
 
-    List<Pedido> findByStatus(StatusPedido status);
+    List<Pedido> findByUsuarioId(String usuarioId);
 
-    List<Pedido> findByClienteContainingIgnoreCase(String cliente);
+    List<Pedido> findByUsuarioIdAndStatus(String usuarioId, StatusPedido status);
 }
