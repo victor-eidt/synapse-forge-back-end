@@ -23,8 +23,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public Map<String, String> login(@RequestBody LoginDTO dto) {
-        String response = service.login(dto);
-        return Map.of("access_token", response);
+        return service.login(dto);
     }
 
     @PostMapping("/esqueci-senha")

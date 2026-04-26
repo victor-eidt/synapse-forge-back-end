@@ -11,6 +11,7 @@ import synapseforge.crud.infrastructure.repository.UserRepository;
 import synapseforge.crud.infrastructure.security.JwtService;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -53,7 +54,7 @@ public class AuthService {
     }
 
     // LOGIN
-    public String login(LoginDTO dto) {
+    public Map<String, String> login(LoginDTO dto) {
 
         User user = repository.findByEmail(dto.getEmail())
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
@@ -78,7 +79,11 @@ public class AuthService {
         user.setBloqueadoEm(null);
         repository.save(user);
 
-        return jwtService.generateToken(user.getId());
+        String token = jwtService.generateToken(user.getId());
+        return Map.of(
+            "access_token", token,
+            "user_id", user.getId()
+        );
     }
 
     // ESQUECI SENHA
