@@ -66,8 +66,13 @@ public class PedidoService {
                 .filter(p -> usuarioId.equals(p.getUsuarioId()))
                 .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
 
+        StatusPedido statusAtual = pedido.getStatus();
+        if (statusAtual == null) {
+            throw new RuntimeException("Status do pedido inválido");
+        }
+
         StatusPedido[] valores = StatusPedido.values();
-        int indiceAtual = pedido.getStatus().ordinal();
+        int indiceAtual = statusAtual.ordinal();
 
         if (indiceAtual >= valores.length - 1) {
             throw new RuntimeException("Pedido já está finalizado");
