@@ -84,5 +84,12 @@ public class UserService {
         return repository.saveAll(users);
     }
 
+    public List<User> buscarPorNome(String nome) {
+        if (nome == null || nome.trim().length() < 3) {
+            throw new RuntimeException("Mínimo 3 caracteres para busca");
+        }
+        return repository.findByNomeIgnoreCaseContaining(nome.trim());
+    }
+
 
 }

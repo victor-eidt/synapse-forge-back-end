@@ -11,4 +11,6 @@ public interface UserRepository extends MongoRepository<User, String> {
 
     Optional<User> findByResetToken(String resetToken);
 
+    java.util.List<User> findByNomeIgnoreCaseContaining(String nome);
+
 }

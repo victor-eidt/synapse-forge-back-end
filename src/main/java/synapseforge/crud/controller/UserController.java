@@ -70,5 +70,12 @@ public class UserController {
                 .toList();
     }
 
+    @GetMapping("/search")
+    public List<UserResponseDTO> buscarPorNome(@RequestParam String nome) {
+        return service.buscarPorNome(nome)
+                .stream()
+                .map(service::toResponseDTO)
+                .toList();
+    }
 
 }
