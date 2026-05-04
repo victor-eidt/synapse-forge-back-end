@@ -1,6 +1,7 @@
 package synapseforge.crud.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
@@ -16,6 +17,9 @@ public class UserService {
 
     @Autowired
     private UserRepository repository;
+
+    @Autowired
+    private BCryptPasswordEncoder encoder;
 
     public User toEntity(UserRequestDTO dto) {
         User user = new User();
@@ -46,6 +50,7 @@ public class UserService {
             throw new RuntimeException("Email já cadastrado");
         }
 
+        user.setSenha(encoder.encode(user.getSenha()));
         user.setCriadoEm(LocalDateTime.now());
         user.setAtivo(true);
 
@@ -81,6 +86,7 @@ public class UserService {
     public List<User> criarVarios(List<User> users) {
 
         users.forEach(user -> {
+            user.setSenha(encoder.encode(user.getSenha()));
             user.setCriadoEm(LocalDateTime.now());
             user.setAtivo(true);
         });
