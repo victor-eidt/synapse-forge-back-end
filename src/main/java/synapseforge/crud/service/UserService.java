@@ -23,6 +23,8 @@ public class UserService {
         user.setNome(dto.getNome());
         user.setEmail(dto.getEmail());
         user.setSenha(dto.getSenha());
+        user.setCpf(dto.getCpf());
+        user.setTelefone(dto.getTelefone());
         user.setRole(dto.getRole());
 
         return user;
@@ -33,17 +35,17 @@ public class UserService {
                 user.getId(),
                 user.getNome(),
                 user.getEmail(),
+                user.getCpf(),
+                user.getTelefone(),
                 user.getRole().name()
         );
     }
 
     public User criar(User user) {
-        //garantir que emails iguais sejam cadastrados no sistema
         if (repository.findByEmail(user.getEmail()).isPresent()) {
             throw new RuntimeException("Email já cadastrado");
         }
 
-        // regra de negócio
         user.setCriadoEm(LocalDateTime.now());
         user.setAtivo(true);
 
@@ -65,6 +67,8 @@ public class UserService {
 
         user.setNome(userAtualizado.getNome());
         user.setEmail(userAtualizado.getEmail());
+        user.setCpf(userAtualizado.getCpf());
+        user.setTelefone(userAtualizado.getTelefone());
         user.setRole(userAtualizado.getRole());
 
         return repository.save(user);

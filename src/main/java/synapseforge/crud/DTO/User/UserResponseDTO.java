@@ -10,6 +10,8 @@ public class UserResponseDTO {
     private String id;
     private String nome;
     private String email;
+    private String cpf;
+    private String telefone;
     private String role;
 
 }
