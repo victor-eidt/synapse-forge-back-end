@@ -115,15 +115,15 @@ public class EventoService {
 
     public List<Evento> buscarPorUserIdAndMesAno(String userId, String mes, String ano) {
         try {
-            logger.info("Buscando eventos por userId: {}, mês: {}, ano: {}", userId, mes, ano);
+            logger.info("Buscando eventos por userId ou participante: {}, mês: {}, ano: {}", userId, mes, ano);
             // Dependendo do formato da data salva no banco, o pattern precisa ser ajustado.
             // Exemplo assumindo formato "yyyy-MM-dd...":
             String mesAnoPattern = String.format("^%s-%s-.*", ano, mes);
-            List<Evento> eventos = repository.findByUserIdAndMesAno(userId, mesAnoPattern);
-            logger.info("Eventos encontrados para userId {} no mês/ano {}/{}, total: {}", userId, mes, ano, eventos.size());
+            List<Evento> eventos = repository.findByUserIdOrParticipanteAndMesAno(userId, mesAnoPattern);
+            logger.info("Eventos encontrados para userId/participante {} no mês/ano {}/{}, total: {}", userId, mes, ano, eventos.size());
             return eventos;
         } catch (Exception e) {
-            logger.error("Erro ao buscar eventos por userId e mes/ano: {}, {}/{}", userId, mes, ano, e);
+            logger.error("Erro ao buscar eventos por userId/participante e mes/ano: {}, {}/{}", userId, mes, ano, e);
             throw e;
         }
     }

@@ -13,4 +13,6 @@ public interface EventoRepository extends MongoRepository<Evento, String> {
     @Query("{ 'userId': ?0, 'data': { $regex: ?1 } }")
     List<Evento> findByUserIdAndMesAno(String userId, String mesAnoPattern);
 
+    @Query("{ $or: [ { 'userId': ?0 }, { 'participantes': ?0 } ], 'data': { $regex: ?1 } }")
+    List<Evento> findByUserIdOrParticipanteAndMesAno(String userId, String mesAnoPattern);
 }
