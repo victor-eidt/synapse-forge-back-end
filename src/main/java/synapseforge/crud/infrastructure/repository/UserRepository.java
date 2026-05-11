@@ -11,6 +11,12 @@ public interface UserRepository extends MongoRepository<User, String> {
 
     Optional<User> findByResetToken(String resetToken);
 
+    Optional<User> findByEmailConfirmToken(String emailConfirmToken);
+
+    Optional<User> findByEmailMudancaToken(String emailMudancaToken);
+
     java.util.List<User> findByNomeIgnoreCaseContaining(String nome);
+
+    java.util.List<User> findByEmailConfirmadoFalseAndEmailConfirmTokenIsNull();
 
 }

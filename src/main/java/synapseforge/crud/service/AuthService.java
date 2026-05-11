@@ -5,7 +5,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.User.LoginDTO;
 import synapseforge.crud.DTO.User.UserRequestDTO;
-import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 import synapseforge.crud.infrastructure.security.JwtService;
@@ -21,41 +20,38 @@ public class AuthService {
     private final UserRepository repository;
     private final BCryptPasswordEncoder encoder;
     private final JwtService jwtService;
+    private final EmailService emailService;
 
-    // CADASTRO
-    public UserResponseDTO cadastro(UserRequestDTO dto) {
+    public Map<String, String> cadastro(UserRequestDTO dto) {
 
         repository.findByEmail(dto.getEmail())
                 .ifPresent(u -> {
                     throw new RuntimeException("Email já cadastrado");
                 });
 
-        String senhaCriptografada = encoder.encode(dto.getSenha());
+        String confirmToken = UUID.randomUUID().toString();
 
         User user = new User();
         user.setNome(dto.getNome());
         user.setEmail(dto.getEmail());
-        user.setSenha(senhaCriptografada);
+        user.setSenha(encoder.encode(dto.getSenha()));
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
         user.setRole(dto.getRole());
         user.setAtivo(true);
         user.setCriadoEm(LocalDateTime.now());
         user.setTentativasLogin(0);
+        user.setEmailConfirmado(false);
+        user.setEmailConfirmToken(confirmToken);
+        user.setEmailConfirmTokenExpira(LocalDateTime.now().plusHours(24));
 
         repository.save(user);
 
-        return new UserResponseDTO(
-                user.getId(),
-                user.getNome(),
-                user.getEmail(),
-                user.getCpf(),
-                user.getTelefone(),
-                user.getRole().name()
-        );
+        emailService.enviarConfirmacaoCadastro(user.getEmail(), user.getNome(), confirmToken);
+
+        return Map.of("mensagem", "Conta criada! Verifique seu email para confirmar o acesso.");
     }
 
-    // LOGIN
     public Map<String, String> login(LoginDTO dto) {
 
         User user = repository.findByEmail(dto.getEmail())
@@ -77,6 +73,10 @@ public class AuthService {
             throw new RuntimeException("Senha incorreta");
         }
 
+        if (!user.isEmailConfirmado()) {
+            throw new RuntimeException("EMAIL_NAO_CONFIRMADO");
+        }
+
         user.setTentativasLogin(0);
         user.setBloqueadoEm(null);
         repository.save(user);
@@ -88,7 +88,29 @@ public class AuthService {
         );
     }
 
-    // ESQUECI SENHA
+    public Map<String, String> confirmarEmail(String token) {
+
+        User user = repository.findByEmailConfirmToken(token)
+                .orElseThrow(() -> new RuntimeException("Token inválido ou já utilizado"));
+
+        if (user.getEmailConfirmTokenExpira() == null ||
+                user.getEmailConfirmTokenExpira().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Token expirado");
+        }
+
+        user.setEmailConfirmado(true);
+        user.setEmailConfirmToken(null);
+        user.setEmailConfirmTokenExpira(null);
+        user.setTentativasLogin(0);
+        repository.save(user);
+
+        String jwt = jwtService.generateToken(user.getId());
+        return Map.of(
+            "access_token", jwt,
+            "user_id", user.getId()
+        );
+    }
+
     public String esqueciSenha(String email) {
 
         User user = repository.findByEmail(email)
@@ -103,7 +125,6 @@ public class AuthService {
         return token;
     }
 
-    // REDEFINIR SENHA
     public void redefinirSenha(String email, String token, String novaSenha) {
 
         User user = repository.findByResetToken(token)

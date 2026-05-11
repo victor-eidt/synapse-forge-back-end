@@ -36,6 +36,7 @@ public class SecurityConfig {
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/users/confirmar-mudanca-email/**").permitAll()
                         .anyRequest().authenticated()
                 )
 

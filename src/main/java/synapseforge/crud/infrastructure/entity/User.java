@@ -37,4 +37,12 @@ public class User {
 
     private String resetToken;
     private LocalDateTime resetTokenExpira;
+
+    private boolean emailConfirmado;
+    private String emailConfirmToken;
+    private LocalDateTime emailConfirmTokenExpira;
+
+    private String emailPendente;
+    private String emailMudancaToken;
+    private LocalDateTime emailMudancaTokenExpira;
 }

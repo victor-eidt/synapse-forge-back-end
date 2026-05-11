@@ -23,7 +23,18 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
+        migrarUsuariosExistentes();
         seedTestUsers();
+    }
+
+    // Sets emailConfirmado=true for users created before the email confirmation feature
+    private void migrarUsuariosExistentes() {
+        List<User> naoConfirmados = userRepository.findByEmailConfirmadoFalseAndEmailConfirmTokenIsNull();
+        for (User user : naoConfirmados) {
+            user.setEmailConfirmado(true);
+            userRepository.save(user);
+            System.out.println("Migrado (emailConfirmado=true): " + user.getEmail());
+        }
     }
 
     private void seedTestUsers() {
@@ -49,6 +60,7 @@ public class DataInitializer implements CommandLineRunner {
         user.setSenha(passwordEncoder.encode("1234"));
         user.setRole(Role.CLIENTE);
         user.setAtivo(true);
+        user.setEmailConfirmado(true);
         user.setCriadoEm(LocalDateTime.now());
         return user;
     }
