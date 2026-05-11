@@ -9,6 +9,7 @@ import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.service.UserService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -45,8 +46,7 @@ public class UserController {
     @PutMapping("/{id}")
     public UserResponseDTO atualizar(@PathVariable String id, @RequestBody UserRequestDTO dto) {
 
-        User user = service.toEntity(dto);
-        User atualizado = service.atualizar(id, user);
+        User atualizado = service.atualizar(id, dto);
 
         return service.toResponseDTO(atualizado);
     }
@@ -76,6 +76,17 @@ public class UserController {
                 .stream()
                 .map(service::toResponseDTO)
                 .toList();
+    }
+
+    @PostMapping("/{id}/solicitar-mudanca-email")
+    public Map<String, String> solicitarMudancaEmail(@PathVariable String id, @RequestBody Map<String, String> body) {
+        return service.solicitarMudancaEmail(id, body.get("novoEmail"));
+    }
+
+    @GetMapping("/confirmar-mudanca-email/{token}")
+    public Map<String, String> confirmarMudancaEmail(@PathVariable String token) {
+        service.confirmarMudancaEmail(token);
+        return Map.of("mensagem", "Email alterado com sucesso!");
     }
 
 }
