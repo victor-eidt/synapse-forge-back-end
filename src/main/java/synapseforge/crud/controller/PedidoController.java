@@ -9,12 +9,19 @@ import synapseforge.crud.DTO.Pedido.PedidoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.service.PedidoService;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import synapseforge.crud.service.PdfService;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/pedidos")
 public class PedidoController {
+
+    @Autowired
+    private PdfService pdfService;
 
     @Autowired
     private PedidoService service;
@@ -63,5 +70,26 @@ public class PedidoController {
     public void deletar(@PathVariable String id, Authentication auth) {
         String usuarioId = (String) auth.getPrincipal();
         service.deletar(id, usuarioId);
+    }
+
+
+    @GetMapping("/{id}/ordem-servico")
+    public ResponseEntity<byte[]> gerarOrdemServico(
+            @PathVariable String id,
+            Authentication auth
+    ) {
+
+        String usuarioId = (String) auth.getPrincipal();
+
+        Pedido pedido = service.buscarPorId(id, usuarioId)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+
+        byte[] pdf = pdfService.gerarOrdemServico(pedido);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=ordem-servico.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 }
