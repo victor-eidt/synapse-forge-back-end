@@ -24,7 +24,9 @@ public class AuthService {
 
     public Map<String, String> cadastro(UserRequestDTO dto) {
 
-        repository.findByEmail(dto.getEmail())
+        String email = normalizarEmail(dto.getEmail());
+
+        repository.findByEmail(email)
                 .ifPresent(u -> {
                     throw new RuntimeException("Email já cadastrado");
                 });
@@ -33,7 +35,7 @@ public class AuthService {
 
         User user = new User();
         user.setNome(dto.getNome());
-        user.setEmail(dto.getEmail());
+        user.setEmail(email);
         user.setSenha(encoder.encode(dto.getSenha()));
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
@@ -54,7 +56,9 @@ public class AuthService {
 
     public Map<String, String> login(LoginDTO dto) {
 
-        User user = repository.findByEmail(dto.getEmail())
+        String email = normalizarEmail(dto.getEmail());
+
+        User user = repository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
 
         if (user.getBloqueadoEm() != null &&
@@ -114,7 +118,9 @@ public class AuthService {
     public void esqueciSenha(String email) {
 
         // Não revela se o email existe: apenas envia o link quando houver conta.
-        repository.findByEmail(email).ifPresent(user -> {
+        String emailNormalizado = normalizarEmail(email);
+
+        repository.findByEmail(emailNormalizado).ifPresent(user -> {
             String token = UUID.randomUUID().toString();
             user.setResetToken(token);
             user.setResetTokenExpira(LocalDateTime.now().plusHours(1));
@@ -126,10 +132,12 @@ public class AuthService {
 
     public void redefinirSenha(String email, String token, String novaSenha) {
 
+        String emailNormalizado = normalizarEmail(email);
+
         User user = repository.findByResetToken(token)
                 .orElseThrow(() -> new RuntimeException("Token inválido"));
 
-        if (!user.getEmail().equals(email)) {
+        if (!user.getEmail().equals(emailNormalizado)) {
             throw new RuntimeException("Token inválido");
         }
 
@@ -142,5 +150,13 @@ public class AuthService {
         user.setResetToken(null);
         user.setResetTokenExpira(null);
         repository.save(user);
+    }
+
+    private String normalizarEmail(String email) {
+        if (email == null) {
+            return "";
+        }
+
+        return email.trim().toLowerCase();
     }
 }

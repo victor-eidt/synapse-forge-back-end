@@ -1,4 +1,5 @@
 spring.data.mongodb.uri=mongodb://localhost:27017/synapse-forge
+de.flapdoodle.mongodb.embedded.version=7.0.0
 server.port=8081
 spring.application.name=synapse-forge-db
 
