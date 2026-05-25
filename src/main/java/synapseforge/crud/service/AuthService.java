@@ -111,18 +111,17 @@ public class AuthService {
         );
     }
 
-    public String esqueciSenha(String email) {
+    public void esqueciSenha(String email) {
 
-        User user = repository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+        // Não revela se o email existe: apenas envia o link quando houver conta.
+        repository.findByEmail(email).ifPresent(user -> {
+            String token = UUID.randomUUID().toString();
+            user.setResetToken(token);
+            user.setResetTokenExpira(LocalDateTime.now().plusHours(1));
+            repository.save(user);
 
-        String token = UUID.randomUUID().toString();
-        user.setResetToken(token);
-        user.setResetTokenExpira(LocalDateTime.now().plusHours(1));
-        repository.save(user);
-
-        // TODO: enviar token por e-mail
-        return token;
+            emailService.enviarRecuperacaoSenha(user.getEmail(), user.getNome(), token);
+        });
     }
 
     public void redefinirSenha(String email, String token, String novaSenha) {

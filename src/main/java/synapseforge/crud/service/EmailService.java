@@ -45,6 +45,20 @@ public class EmailService {
         enviar(destinatario, "Confirme seu novo email – SynapseForge", html);
     }
 
+    public void enviarRecuperacaoSenha(String destinatario, String nome, String token) {
+        String link = appUrl + "/redefinir-senha?token=" + token
+                + "&email=" + java.net.URLEncoder.encode(destinatario, java.nio.charset.StandardCharsets.UTF_8);
+        String html = buildHtml(
+            "Redefinição de senha",
+            "Olá, " + nome + "!",
+            "Recebemos uma solicitação para redefinir a senha da sua conta SynapseForge. Clique no botão abaixo para escolher uma nova senha.",
+            link,
+            "Redefinir senha",
+            "Se você não solicitou isso, ignore este email. O link expira em 1 hora."
+        );
+        enviar(destinatario, "Redefinição de senha – SynapseForge", html);
+    }
+
     private void enviar(String destinatario, String assunto, String html) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
