@@ -47,7 +47,12 @@ public class AuthService {
 
         repository.save(user);
 
-        emailService.enviarConfirmacaoCadastro(user.getEmail(), user.getNome(), confirmToken);
+        try {
+            emailService.enviarConfirmacaoCadastro(user.getEmail(), user.getNome(), confirmToken);
+        } catch (RuntimeException e) {
+            repository.delete(user);
+            throw e;
+        }
 
         return Map.of("mensagem", "Conta criada! Verifique seu email para confirmar o acesso.");
     }
