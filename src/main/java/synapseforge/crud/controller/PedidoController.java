@@ -51,6 +51,13 @@ public class PedidoController {
         return service.toResponseDTO(pedido);
     }
 
+    @PatchMapping("/{id}/status/regredir")
+    public PedidoResponseDTO regredirStatus(@PathVariable String id, Authentication auth) {
+        String usuarioId = (String) auth.getPrincipal();
+        Pedido pedido = service.regredirStatus(id, usuarioId);
+        return service.toResponseDTO(pedido);
+    }
+
     @PutMapping("/{id}")
     public PedidoResponseDTO atualizar(@PathVariable String id, @RequestBody @Valid PedidoRequestDTO dto, Authentication auth) {
         String usuarioId = (String) auth.getPrincipal();
