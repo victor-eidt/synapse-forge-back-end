@@ -85,6 +85,27 @@ public class PedidoService {
         return repository.save(pedido);
     }
 
+    public Pedido regredirStatus(String id, String usuarioId) {
+        Pedido pedido = repository.findById(id)
+                .filter(p -> usuarioId.equals(p.getUsuarioId()))
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+
+        StatusPedido statusAtual = pedido.getStatus();
+        if (statusAtual == null) {
+            throw new RuntimeException("Status do pedido inválido");
+        }
+
+        int indiceAtual = statusAtual.ordinal();
+
+        if (indiceAtual <= 0) {
+            throw new RuntimeException("Pedido já está na primeira etapa");
+        }
+
+        pedido.setStatus(StatusPedido.values()[indiceAtual - 1]);
+        pedido.setAtualizadoEm(LocalDateTime.now());
+        return repository.save(pedido);
+    }
+
     public Pedido atualizar(String id, String usuarioId, Pedido dados) {
         Pedido pedido = repository.findById(id)
                 .filter(p -> usuarioId.equals(p.getUsuarioId()))
