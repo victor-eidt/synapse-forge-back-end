@@ -75,7 +75,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void seedTestCores() {
-        List<String> emails = Arrays.asList("alice.silva@teste.com", "antonio.santos@teste.com");
+        List<String> emails = Arrays.asList("alice.silva@teste.com", "antonio.santos@teste.com", "victoreidtrl@gmail.com");
         for (String email : emails) {
             userRepository.findByEmail(email)
                     .ifPresent(user -> seedCoresParaUsuario(user.getId(), user.getNome()));
