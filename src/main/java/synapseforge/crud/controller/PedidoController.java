@@ -14,13 +14,13 @@ import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.service.PedidoService;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.gridfs.GridFsTemplate;
+import org.bson.types.ObjectId;
 
 @RestController
 @RequestMapping("/pedidos")
@@ -28,6 +28,9 @@ public class PedidoController {
 
     @Autowired
     private PedidoService service;
+
+    @Autowired
+    private GridFsTemplate gridFsTemplate;
 
     @PostMapping
     public PedidoResponseDTO criar(@RequestBody @Valid PedidoRequestDTO dto, Authentication auth) {
@@ -58,29 +61,21 @@ public class PedidoController {
 
         Pedido pedido = service.toEntity(dto, usuarioId);
 
-        // save 3D object
+            // store 3D object in GridFS
         if (objeto3D != null && !objeto3D.isEmpty()) {
-            String filename = UUID.randomUUID().toString() + "_" + objeto3D.getOriginalFilename();
-            Path dir = Paths.get("uploads", "obj3d");
-            Files.createDirectories(dir);
-            Path target = dir.resolve(filename);
-            objeto3D.transferTo(target.toFile());
-            pedido.setObjeto3DPath(target.toString());
+            ObjectId fileId = gridFsTemplate.store(objeto3D.getInputStream(), objeto3D.getOriginalFilename(), objeto3D.getContentType());
+            pedido.setObjeto3DFileId(fileId.toHexString());
         }
 
-        // save reference images
+        // store reference images in GridFS
         if (imagensReferencia != null && imagensReferencia.length > 0) {
-            List<String> imagePaths = new ArrayList<>();
-            Path dir = Paths.get("uploads", "images");
-            Files.createDirectories(dir);
+            List<String> imageIds = new ArrayList<>();
             for (MultipartFile f : imagensReferencia) {
                 if (f == null || f.isEmpty()) continue;
-                String filename = UUID.randomUUID().toString() + "_" + f.getOriginalFilename();
-                Path target = dir.resolve(filename);
-                f.transferTo(target.toFile());
-                imagePaths.add(target.toString());
+                ObjectId id = gridFsTemplate.store(f.getInputStream(), f.getOriginalFilename(), f.getContentType());
+                imageIds.add(id.toHexString());
             }
-            pedido.setImagensReferenciaPaths(imagePaths);
+            pedido.setImagensReferenciaFileIds(imageIds);
         }
 
         Pedido salvo = service.criar(pedido);

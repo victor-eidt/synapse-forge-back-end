@@ -21,7 +21,7 @@ public class PedidoResponseDTO {
     private LocalDateTime criadoEm;
     private LocalDateTime atualizadoEm;
 
-    // New fields exposing uploaded file paths
-    private String objeto3DPath;
-    private List<String> imagensReferenciaPaths;
+    // GridFS ids for uploaded files
+    private String objeto3DFileId;
+    private List<String> imagensReferenciaFileIds;
 }
