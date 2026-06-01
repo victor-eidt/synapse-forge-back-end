@@ -37,7 +37,9 @@ public class PedidoService {
                 pedido.getStatus(),
                 pedido.getPrazo(),
                 pedido.getCriadoEm(),
-                pedido.getAtualizadoEm()
+                pedido.getAtualizadoEm(),
+                pedido.getObjeto3DFileId(),
+                pedido.getImagensReferenciaFileIds()
         );
     }
 
