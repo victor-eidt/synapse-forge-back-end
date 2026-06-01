@@ -102,6 +102,17 @@ public class PdfService {
 
             document.add(subtitulo);
 
+            String numeroOS = "OS-" + pedido.getId().substring(0, 8).toUpperCase();
+
+            Paragraph numeroDocumento = new Paragraph(
+                    numeroOS,
+                    new Font(Font.HELVETICA, 12, Font.BOLD, Color.GRAY)
+            );
+
+            numeroDocumento.setAlignment(Element.ALIGN_CENTER);
+
+            document.add(numeroDocumento);
+
             // linha fina decorativa
             Paragraph linha = new Paragraph(
                     "____________________________________________",
@@ -143,6 +154,19 @@ public class PdfService {
 
             document.add(infoTable);
 
+            String prazoFormatado = pedido.getPrazo()
+                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+            Paragraph prazoDestaque = new Paragraph(
+                    "Prazo de Entrega: " + prazoFormatado,
+                    new Font(Font.HELVETICA, 12, Font.BOLD, Color.RED)
+            );
+
+            prazoDestaque.setAlignment(Element.ALIGN_CENTER);
+
+            document.add(prazoDestaque);
+            document.add(new Paragraph(" "));
+
             // =====================================================
             // DESCRIÇÃO
             // =====================================================
@@ -178,6 +202,35 @@ public class PdfService {
 
             document.add(new Paragraph(" "));
 
+
+
+            // =====================================================
+
+            Paragraph secaoModelo = new Paragraph(
+                    "INFORMAÇÕES DO MODELO 3D",
+                    secaoFont
+            );
+
+            document.add(secaoModelo);
+
+            document.add(new Paragraph(" "));
+
+
+            PdfPTable modeloTable = new PdfPTable(2);
+
+            modeloTable.setWidthPercentage(100);
+            modeloTable.setWidths(new int[]{1, 3});
+
+            adicionarLinha(modeloTable, "Arquivo", "samurai.stl", labelFont, valorFont);
+            adicionarLinha(modeloTable, "Formato", "STL", labelFont, valorFont);
+            adicionarLinha(modeloTable, "Escala", "1:6", labelFont, valorFont);
+            adicionarLinha(modeloTable, "Altura", "32 cm", labelFont, valorFont);
+
+            document.add(modeloTable);
+
+            document.add(new Paragraph(" "));
+            document.newPage();
+
             // =====================================================
             // GUIA DE PRODUÇÃO
             // =====================================================
@@ -199,6 +252,105 @@ public class PdfService {
             lista.add(new ListItem("Realizar acabamento e inspeção final", valorFont));
 
             document.add(lista);
+
+            document.add(new Paragraph(" "));
+
+            // =====================================================
+
+
+            Paragraph secaoCores = new Paragraph(
+                    "GUIA DE CORES",
+                    secaoFont
+            );
+
+            document.add(secaoCores);
+
+            document.add(new Paragraph(" "));
+
+            PdfPTable coresTable = new PdfPTable(2);
+
+            coresTable.setWidthPercentage(100);
+            coresTable.setWidths(new int[]{1, 3});
+
+            adicionarLinha(
+                    coresTable,
+                    "Armadura",
+                    "Preto Fosco (70%)",
+                    labelFont,
+                    valorFont
+            );
+
+            adicionarLinha(
+                    coresTable,
+                    "Detalhes",
+                    "Laranja Metálico (20%)",
+                    labelFont,
+                    valorFont
+            );
+
+            adicionarLinha(
+                    coresTable,
+                    "Acabamento",
+                    "Cinza Grafite (10%)",
+                    labelFont,
+                    valorFont
+            );
+
+            document.add(coresTable);
+
+            document.add(new Paragraph(" "));
+
+            document.add(new Paragraph(" "));
+
+            // ====================================================
+
+            Paragraph secaoOrcamento = new Paragraph(
+                    "RESUMO DO ORÇAMENTO",
+                    secaoFont
+            );
+
+            document.add(secaoOrcamento);
+
+            document.add(new Paragraph(" "));
+
+
+            PdfPTable orcamentoTable = new PdfPTable(2);
+
+            orcamentoTable.setWidthPercentage(100);
+
+            adicionarLinha(
+                    orcamentoTable,
+                    "Material",
+                    "R$ 75,00",
+                    labelFont,
+                    valorFont
+            );
+
+            adicionarLinha(
+                    orcamentoTable,
+                    "Impressão",
+                    "R$ 120,00",
+                    labelFont,
+                    valorFont
+            );
+
+            adicionarLinha(
+                    orcamentoTable,
+                    "Pintura",
+                    "R$ 80,00",
+                    labelFont,
+                    valorFont
+            );
+
+            adicionarLinha(
+                    orcamentoTable,
+                    "TOTAL",
+                    "R$ 275,00",
+                    labelFont,
+                    valorFont
+            );
+
+            document.add(orcamentoTable);
 
             document.add(new Paragraph(" "));
 
@@ -227,14 +379,34 @@ public class PdfService {
             // ASSINATURA
             // =====================================================
 
-            Paragraph assinatura = new Paragraph(
-                    "__________________________________\nResponsável Técnico",
-                    valorFont
+            PdfPTable assinaturaTable = new PdfPTable(2);
+
+            assinaturaTable.setWidthPercentage(100);
+
+            PdfPCell cliente = new PdfPCell(
+                    new Phrase(
+                            "\n\n____________________________\nCliente",
+                            valorFont
+                    )
             );
 
-            assinatura.setAlignment(Element.ALIGN_CENTER);
+            PdfPCell tecnico = new PdfPCell(
+                    new Phrase(
+                            "\n\n____________________________\nResponsável Técnico",
+                            valorFont
+                    )
+            );
 
-            document.add(assinatura);
+            cliente.setBorder(Rectangle.NO_BORDER);
+            tecnico.setBorder(Rectangle.NO_BORDER);
+
+            cliente.setHorizontalAlignment(Element.ALIGN_CENTER);
+            tecnico.setHorizontalAlignment(Element.ALIGN_CENTER);
+
+            assinaturaTable.addCell(cliente);
+            assinaturaTable.addCell(tecnico);
+
+            document.add(assinaturaTable);
 
             document.add(new Paragraph(" "));
             document.add(new Paragraph(" "));
