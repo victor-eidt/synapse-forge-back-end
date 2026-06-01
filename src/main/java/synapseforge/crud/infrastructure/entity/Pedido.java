@@ -34,9 +34,9 @@ public class Pedido {
     private LocalDateTime criadoEm;
     private LocalDateTime atualizadoEm;
 
-    // Path or filename for uploaded 3D object
-    private String objeto3DPath;
+    // GridFS id for uploaded 3D object
+    private String objeto3DFileId;
 
-    // Paths or filenames for reference images
-    private List<String> imagensReferenciaPaths;
+    // GridFS ids for reference images
+    private List<String> imagensReferenciaFileIds;
 }

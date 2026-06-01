@@ -38,8 +38,8 @@ public class PedidoService {
                 pedido.getPrazo(),
                 pedido.getCriadoEm(),
                 pedido.getAtualizadoEm(),
-                pedido.getObjeto3DPath(),
-                pedido.getImagensReferenciaPaths()
+                pedido.getObjeto3DFileId(),
+                pedido.getImagensReferenciaFileIds()
         );
     }
 
