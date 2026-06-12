@@ -64,7 +64,7 @@ public class AuthService {
 
         if (user.getBloqueadoEm() != null &&
                 user.getBloqueadoEm().isAfter(LocalDateTime.now())) {
-            throw new RuntimeException("Conta bloqueada temporariamente");
+            throw new RuntimeException("CONTA_BLOQUEADA:" + minutosRestantes(user.getBloqueadoEm()));
         }
 
         if (!encoder.matches(dto.getSenha(), user.getSenha())) {
@@ -72,6 +72,8 @@ public class AuthService {
 
             if (user.getTentativasLogin() >= 5) {
                 user.setBloqueadoEm(LocalDateTime.now().plusMinutes(15));
+                repository.save(user);
+                throw new RuntimeException("CONTA_BLOQUEADA:15");
             }
 
             repository.save(user);
@@ -91,6 +93,11 @@ public class AuthService {
             "access_token", token,
             "user_id", user.getId()
         );
+    }
+
+    private long minutosRestantes(LocalDateTime bloqueadoEm) {
+        long minutos = java.time.Duration.between(LocalDateTime.now(), bloqueadoEm).toMinutes() + 1;
+        return Math.max(minutos, 1);
     }
 
     public Map<String, String> confirmarEmail(String token) {
