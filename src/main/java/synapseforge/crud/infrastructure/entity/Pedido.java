@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -32,4 +33,10 @@ public class Pedido {
 
     private LocalDateTime criadoEm;
     private LocalDateTime atualizadoEm;
+
+    // GridFS id for uploaded 3D object
+    private String objeto3DFileId;
+
+    // GridFS ids for reference images
+    private List<String> imagensReferenciaFileIds;
 }

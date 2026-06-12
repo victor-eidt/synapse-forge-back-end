@@ -2,15 +2,25 @@ package synapseforge.crud.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import synapseforge.crud.DTO.Pedido.PedidoRequestDTO;
 import synapseforge.crud.DTO.Pedido.PedidoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.service.PedidoService;
 
+import java.io.IOException;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.gridfs.GridFsTemplate;
+import org.bson.types.ObjectId;
 
 @RestController
 @RequestMapping("/pedidos")
@@ -19,10 +29,55 @@ public class PedidoController {
     @Autowired
     private PedidoService service;
 
+    @Autowired
+    private GridFsTemplate gridFsTemplate;
+
     @PostMapping
     public PedidoResponseDTO criar(@RequestBody @Valid PedidoRequestDTO dto, Authentication auth) {
         String usuarioId = (String) auth.getPrincipal();
         Pedido pedido = service.toEntity(dto, usuarioId);
+        Pedido salvo = service.criar(pedido);
+        return service.toResponseDTO(salvo);
+    }
+
+    // Multipart endpoint to accept one 3D file and multiple reference images
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public PedidoResponseDTO criarComArquivos(
+            @RequestParam("cliente") String cliente,
+            @RequestParam("projeto") String projeto,
+            @RequestParam(value = "descricao", required = false) String descricao,
+            @RequestParam("prazo") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate prazo,
+            @RequestParam(value = "objeto3D", required = false) MultipartFile objeto3D,
+            @RequestParam(value = "imagensReferencia", required = false) MultipartFile[] imagensReferencia,
+            Authentication auth
+    ) throws IOException {
+        String usuarioId = (String) auth.getPrincipal();
+
+        PedidoRequestDTO dto = new PedidoRequestDTO();
+        dto.setCliente(cliente);
+        dto.setProjeto(projeto);
+        dto.setDescricao(descricao);
+        dto.setPrazo(prazo);
+
+        Pedido pedido = service.toEntity(dto, usuarioId);
+
+            // store 3D object in GridFS
+        if (objeto3D != null && !objeto3D.isEmpty()) {
+            ObjectId fileId = gridFsTemplate.store(objeto3D.getInputStream(), objeto3D.getOriginalFilename(), objeto3D.getContentType());
+            pedido.setObjeto3DFileId(fileId.toHexString());
+        }
+
+        // store reference images in GridFS
+        if (imagensReferencia != null && imagensReferencia.length > 0) {
+            List<String> imageIds = new ArrayList<>();
+            for (MultipartFile f : imagensReferencia) {
+                if (f == null || f.isEmpty()) continue;
+                ObjectId id = gridFsTemplate.store(f.getInputStream(), f.getOriginalFilename(), f.getContentType());
+                imageIds.add(id.toHexString());
+            }
+            pedido.setImagensReferenciaFileIds(imageIds);
+        }
+
         Pedido salvo = service.criar(pedido);
         return service.toResponseDTO(salvo);
     }
