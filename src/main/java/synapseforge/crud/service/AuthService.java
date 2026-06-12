@@ -146,6 +146,8 @@ public class AuthService {
         user.setSenha(encoder.encode(novaSenha));
         user.setResetToken(null);
         user.setResetTokenExpira(null);
+        user.setTentativasLogin(0);
+        user.setBloqueadoEm(null);
         repository.save(user);
     }
 }
