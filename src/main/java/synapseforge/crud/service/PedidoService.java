@@ -29,24 +29,44 @@ public class PedidoService {
         return pedido;
     }
 
-    public PedidoResponseDTO toResponseDTO(Pedido pedido) {
-        // build public URLs for files so frontend can display/download them
-        String objeto3DUrl = null;
-        if (pedido.getObjeto3DFileId() != null) {
-            objeto3DUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-                    .path("/files/")
-                    .path(pedido.getObjeto3DFileId())
-                    .toUriString();
-        }
+    @Autowired
+    private org.springframework.data.mongodb.gridfs.GridFsTemplate gridFsTemplate;
 
-        List<String> imagensUrls = null;
+    public PedidoResponseDTO toResponseDTO(Pedido pedido) {
+        // keep objeto3DFileId as the file id (frontend will call the protected endpoint to download)
+        String objeto3DFileId = pedido.getObjeto3DFileId();
+
+        List<String> imagensBase64 = null;
         if (pedido.getImagensReferenciaFileIds() != null) {
-            imagensUrls = pedido.getImagensReferenciaFileIds().stream()
-                    .map(id -> ServletUriComponentsBuilder.fromCurrentContextPath()
-                            .path("/files/")
-                            .path(id)
-                            .toUriString())
-                    .toList();
+            imagensBase64 = new java.util.ArrayList<>();
+            for (String id : pedido.getImagensReferenciaFileIds()) {
+                try {
+                    org.bson.types.ObjectId oid = new org.bson.types.ObjectId(id);
+                    com.mongodb.client.gridfs.model.GridFSFile gridFsFile = gridFsTemplate.findOne(new org.springframework.data.mongodb.core.query.Query(org.springframework.data.mongodb.core.query.Criteria.where("_id").is(oid)));
+                    if (gridFsFile == null) {
+                        imagensBase64.add(null);
+                        continue;
+                    }
+                    org.springframework.data.mongodb.gridfs.GridFsResource resource = gridFsTemplate.getResource(gridFsFile);
+                    java.io.InputStream is = resource.getInputStream();
+                    byte[] bytes = is.readAllBytes();
+
+                    String contentType = "application/octet-stream";
+                    if (gridFsFile.getMetadata() != null) {
+                        if (gridFsFile.getMetadata().getString("contentType") != null) {
+                            contentType = gridFsFile.getMetadata().getString("contentType");
+                        } else if (gridFsFile.getMetadata().getString("_contentType") != null) {
+                            contentType = gridFsFile.getMetadata().getString("_contentType");
+                        }
+                    }
+
+                    String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
+                    imagensBase64.add("data:" + contentType + ";base64," + b64);
+                } catch (Exception e) {
+                    // on error, add null to keep positions
+                    imagensBase64.add(null);
+                }
+            }
         }
 
         return new PedidoResponseDTO(
@@ -58,8 +78,8 @@ public class PedidoService {
                 pedido.getPrazo(),
                 pedido.getCriadoEm(),
                 pedido.getAtualizadoEm(),
-                objeto3DUrl,
-                imagensUrls
+                objeto3DFileId,
+                imagensBase64
         );
     }
 
