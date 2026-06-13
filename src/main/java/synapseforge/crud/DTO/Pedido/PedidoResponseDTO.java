@@ -24,4 +24,5 @@ public class PedidoResponseDTO {
     // GridFS ids for uploaded files
     private String objeto3DFileId;
     private List<String> imagensReferenciaFileIds;
+    private List<String> imagensReferenciaIds;
 }

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
+import synapseforge.crud.infrastructure.entity.StatusPedido;
 
 import java.time.LocalDate;
 
@@ -21,4 +22,6 @@ public class PedidoRequestDTO {
 
     @NotNull
     private LocalDate prazo;
+
+    private StatusPedido status;
 }
