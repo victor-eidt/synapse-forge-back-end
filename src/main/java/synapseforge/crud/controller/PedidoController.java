@@ -126,4 +126,39 @@ public class PedidoController {
         String usuarioId = (String) auth.getPrincipal();
         service.deletar(id, usuarioId);
     }
+
+    @GetMapping("/{id}/obj3d")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.InputStreamResource> getObjeto3D(@PathVariable String id, Authentication auth) throws java.io.IOException {
+        String usuarioId = (String) auth.getPrincipal();
+        synapseforge.crud.infrastructure.entity.Pedido pedido = service.buscarPorId(id, usuarioId)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+
+        String fileId = pedido.getObjeto3DFileId();
+        if (fileId == null) {
+            return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).build();
+        }
+
+        com.mongodb.client.gridfs.model.GridFSFile gridFsFile = gridFsTemplate.findOne(new org.springframework.data.mongodb.core.query.Query(org.springframework.data.mongodb.core.query.Criteria.where("_id").is(new org.bson.types.ObjectId(fileId))));
+        if (gridFsFile == null) {
+            return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND).build();
+        }
+
+        org.springframework.data.mongodb.gridfs.GridFsResource resource = gridFsTemplate.getResource(gridFsFile);
+
+        String contentType = "application/octet-stream";
+        if (gridFsFile.getMetadata() != null) {
+            if (gridFsFile.getMetadata().getString("contentType") != null) {
+                contentType = gridFsFile.getMetadata().getString("contentType");
+            } else if (gridFsFile.getMetadata().getString("_contentType") != null) {
+                contentType = gridFsFile.getMetadata().getString("_contentType");
+            }
+        }
+
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.setContentType(org.springframework.http.MediaType.parseMediaType(contentType));
+        headers.setContentDisposition(org.springframework.http.ContentDisposition.attachment().filename(gridFsFile.getFilename()).build());
+
+        org.springframework.core.io.InputStreamResource body = new org.springframework.core.io.InputStreamResource(resource.getInputStream());
+        return new org.springframework.http.ResponseEntity<>(body, headers, org.springframework.http.HttpStatus.OK);
+    }
 }
