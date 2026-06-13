@@ -11,6 +11,7 @@ import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @Service
 public class PedidoService {
@@ -29,6 +30,25 @@ public class PedidoService {
     }
 
     public PedidoResponseDTO toResponseDTO(Pedido pedido) {
+        // build public URLs for files so frontend can display/download them
+        String objeto3DUrl = null;
+        if (pedido.getObjeto3DFileId() != null) {
+            objeto3DUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
+                    .path("/files/")
+                    .path(pedido.getObjeto3DFileId())
+                    .toUriString();
+        }
+
+        List<String> imagensUrls = null;
+        if (pedido.getImagensReferenciaFileIds() != null) {
+            imagensUrls = pedido.getImagensReferenciaFileIds().stream()
+                    .map(id -> ServletUriComponentsBuilder.fromCurrentContextPath()
+                            .path("/files/")
+                            .path(id)
+                            .toUriString())
+                    .toList();
+        }
+
         return new PedidoResponseDTO(
                 pedido.getId(),
                 pedido.getCliente(),
@@ -38,8 +58,8 @@ public class PedidoService {
                 pedido.getPrazo(),
                 pedido.getCriadoEm(),
                 pedido.getAtualizadoEm(),
-                pedido.getObjeto3DFileId(),
-                pedido.getImagensReferenciaFileIds()
+                objeto3DUrl,
+                imagensUrls
         );
     }
 
