@@ -11,6 +11,7 @@ import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @Service
 public class PedidoService {
@@ -28,7 +29,46 @@ public class PedidoService {
         return pedido;
     }
 
+    @Autowired
+    private org.springframework.data.mongodb.gridfs.GridFsTemplate gridFsTemplate;
+
     public PedidoResponseDTO toResponseDTO(Pedido pedido) {
+        // keep objeto3DFileId as the file id (frontend will call the protected endpoint to download)
+        String objeto3DFileId = pedido.getObjeto3DFileId();
+
+        List<String> imagensBase64 = null;
+        if (pedido.getImagensReferenciaFileIds() != null) {
+            imagensBase64 = new java.util.ArrayList<>();
+            for (String id : pedido.getImagensReferenciaFileIds()) {
+                try {
+                    org.bson.types.ObjectId oid = new org.bson.types.ObjectId(id);
+                    com.mongodb.client.gridfs.model.GridFSFile gridFsFile = gridFsTemplate.findOne(new org.springframework.data.mongodb.core.query.Query(org.springframework.data.mongodb.core.query.Criteria.where("_id").is(oid)));
+                    if (gridFsFile == null) {
+                        imagensBase64.add(null);
+                        continue;
+                    }
+                    org.springframework.data.mongodb.gridfs.GridFsResource resource = gridFsTemplate.getResource(gridFsFile);
+                    java.io.InputStream is = resource.getInputStream();
+                    byte[] bytes = is.readAllBytes();
+
+                    String contentType = "application/octet-stream";
+                    if (gridFsFile.getMetadata() != null) {
+                        if (gridFsFile.getMetadata().getString("contentType") != null) {
+                            contentType = gridFsFile.getMetadata().getString("contentType");
+                        } else if (gridFsFile.getMetadata().getString("_contentType") != null) {
+                            contentType = gridFsFile.getMetadata().getString("_contentType");
+                        }
+                    }
+
+                    String b64 = java.util.Base64.getEncoder().encodeToString(bytes);
+                    imagensBase64.add("data:" + contentType + ";base64," + b64);
+                } catch (Exception e) {
+                    // on error, add null to keep positions
+                    imagensBase64.add(null);
+                }
+            }
+        }
+
         return new PedidoResponseDTO(
                 pedido.getId(),
                 pedido.getCliente(),
@@ -38,8 +78,8 @@ public class PedidoService {
                 pedido.getPrazo(),
                 pedido.getCriadoEm(),
                 pedido.getAtualizadoEm(),
-                pedido.getObjeto3DFileId(),
-                pedido.getImagensReferenciaFileIds()
+                objeto3DFileId,
+                imagensBase64
         );
     }
 
