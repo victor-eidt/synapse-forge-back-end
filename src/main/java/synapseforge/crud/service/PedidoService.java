@@ -9,9 +9,14 @@ import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.infrastructure.repository.PedidoRepository;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import java.util.Set;
+import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 
 @Service
 public class PedidoService {
@@ -26,6 +31,7 @@ public class PedidoService {
         pedido.setProjeto(dto.getProjeto());
         pedido.setDescricao(dto.getDescricao());
         pedido.setPrazo(dto.getPrazo());
+        pedido.setStatus(dto.getStatus());
         return pedido;
     }
 
@@ -79,7 +85,8 @@ public class PedidoService {
                 pedido.getCriadoEm(),
                 pedido.getAtualizadoEm(),
                 objeto3DFileId,
-                imagensBase64
+                imagensBase64,
+                pedido.getImagensReferenciaFileIds()
         );
     }
 
@@ -154,14 +161,81 @@ public class PedidoService {
         pedido.setProjeto(dados.getProjeto());
         pedido.setDescricao(dados.getDescricao());
         pedido.setPrazo(dados.getPrazo());
+        if (dados.getStatus() != null) {
+            pedido.setStatus(dados.getStatus());
+        }
         pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
     }
 
+    public Pedido atualizarComArquivos(
+            String id,
+            String usuarioId,
+            Pedido dados,
+            String novoObjeto3DFileId,
+            boolean removerObjeto3D,
+            List<String> novasImagensIds,
+            List<String> imagensRemover
+    ) {
+        Pedido pedido = repository.findById(id)
+                .filter(p -> usuarioId.equals(p.getUsuarioId()))
+                .orElseThrow(() -> new RuntimeException("Pedido nao encontrado"));
+
+        String objetoAnterior = pedido.getObjeto3DFileId();
+        List<String> imagensAtuais = new ArrayList<>(
+                pedido.getImagensReferenciaFileIds() == null
+                        ? List.of()
+                        : pedido.getImagensReferenciaFileIds()
+        );
+        Set<String> idsSolicitados = new HashSet<>(
+                imagensRemover == null ? List.of() : imagensRemover
+        );
+        idsSolicitados.retainAll(new HashSet<>(imagensAtuais));
+
+        pedido.setCliente(dados.getCliente());
+        pedido.setProjeto(dados.getProjeto());
+        pedido.setDescricao(dados.getDescricao());
+        pedido.setPrazo(dados.getPrazo());
+        if (dados.getStatus() != null) {
+            pedido.setStatus(dados.getStatus());
+        }
+
+        if (novoObjeto3DFileId != null) {
+            pedido.setObjeto3DFileId(novoObjeto3DFileId);
+        } else if (removerObjeto3D) {
+            pedido.setObjeto3DFileId(null);
+        }
+
+        imagensAtuais.removeAll(idsSolicitados);
+        if (novasImagensIds != null) {
+            imagensAtuais.addAll(novasImagensIds);
+        }
+        pedido.setImagensReferenciaFileIds(imagensAtuais);
+        pedido.setAtualizadoEm(LocalDateTime.now());
+
+        Pedido salvo = repository.save(pedido);
+
+        if ((novoObjeto3DFileId != null || removerObjeto3D) && objetoAnterior != null) {
+            deletarArquivoGridFs(objetoAnterior);
+        }
+        idsSolicitados.forEach(this::deletarArquivoGridFs);
+        return salvo;
+    }
+
     public void deletar(String id, String usuarioId) {
-        repository.findById(id)
+        Pedido pedido = repository.findById(id)
                 .filter(p -> usuarioId.equals(p.getUsuarioId()))
                 .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
         repository.deleteById(id);
+
+        deletarArquivoGridFs(pedido.getObjeto3DFileId());
+        if (pedido.getImagensReferenciaFileIds() != null) {
+            pedido.getImagensReferenciaFileIds().forEach(this::deletarArquivoGridFs);
+        }
+    }
+
+    private void deletarArquivoGridFs(String id) {
+        if (id == null || !ObjectId.isValid(id)) return;
+        gridFsTemplate.delete(new Query(Criteria.where("_id").is(new ObjectId(id))));
     }
 }
