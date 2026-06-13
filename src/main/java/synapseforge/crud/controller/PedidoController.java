@@ -113,11 +113,69 @@ public class PedidoController {
         return service.toResponseDTO(pedido);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public PedidoResponseDTO atualizar(@PathVariable String id, @RequestBody @Valid PedidoRequestDTO dto, Authentication auth) {
         String usuarioId = (String) auth.getPrincipal();
         Pedido pedidoAtualizado = service.toEntity(dto, usuarioId);
         Pedido salvo = service.atualizar(id, usuarioId, pedidoAtualizado);
+        return service.toResponseDTO(salvo);
+    }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public PedidoResponseDTO atualizarComArquivos(
+            @PathVariable String id,
+            @RequestParam("cliente") String cliente,
+            @RequestParam("projeto") String projeto,
+            @RequestParam(value = "descricao", required = false) String descricao,
+            @RequestParam("prazo") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate prazo,
+            @RequestParam(value = "status", required = false) StatusPedido status,
+            @RequestParam(value = "objeto3D", required = false) MultipartFile objeto3D,
+            @RequestParam(value = "removerObjeto3D", defaultValue = "false") boolean removerObjeto3D,
+            @RequestParam(value = "imagensReferencia", required = false) MultipartFile[] imagensReferencia,
+            @RequestParam(value = "imagensRemover", required = false) List<String> imagensRemover,
+            Authentication auth
+    ) throws IOException {
+        String usuarioId = (String) auth.getPrincipal();
+        service.buscarPorId(id, usuarioId)
+                .orElseThrow(() -> new RuntimeException("Pedido nao encontrado"));
+
+        PedidoRequestDTO dto = new PedidoRequestDTO();
+        dto.setCliente(cliente);
+        dto.setProjeto(projeto);
+        dto.setDescricao(descricao);
+        dto.setPrazo(prazo);
+        dto.setStatus(status);
+
+        String novoObjetoId = null;
+        if (objeto3D != null && !objeto3D.isEmpty()) {
+            novoObjetoId = gridFsTemplate.store(
+                    objeto3D.getInputStream(),
+                    objeto3D.getOriginalFilename(),
+                    objeto3D.getContentType()
+            ).toHexString();
+        }
+
+        List<String> novasImagensIds = new ArrayList<>();
+        if (imagensReferencia != null) {
+            for (MultipartFile imagem : imagensReferencia) {
+                if (imagem == null || imagem.isEmpty()) continue;
+                novasImagensIds.add(gridFsTemplate.store(
+                        imagem.getInputStream(),
+                        imagem.getOriginalFilename(),
+                        imagem.getContentType()
+                ).toHexString());
+            }
+        }
+
+        Pedido salvo = service.atualizarComArquivos(
+                id,
+                usuarioId,
+                service.toEntity(dto, usuarioId),
+                novoObjetoId,
+                removerObjeto3D,
+                novasImagensIds,
+                imagensRemover
+        );
         return service.toResponseDTO(salvo);
     }
 
