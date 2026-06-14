@@ -291,7 +291,7 @@ public class PdfService {
             // =====================================================
             // IMAGENS DE REFERÊNCIA
             // =====================================================
-
+            document.newPage();
             if (pedido.getImagensReferenciaFileIds() != null
                     && !pedido.getImagensReferenciaFileIds().isEmpty()) {
 
@@ -352,6 +352,10 @@ public class PdfService {
 
                 document.add(new Paragraph(" "));
             }
+
+            document.newPage();
+
+
             // =====================================================
             // GUIA DE PRODUÇÃO
             // =====================================================
