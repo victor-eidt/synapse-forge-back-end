@@ -3,7 +3,9 @@ package synapseforge.crud.controller;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -12,6 +14,7 @@ import synapseforge.crud.DTO.Pedido.PedidoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.service.PedidoService;
+import synapseforge.crud.service.PdfService;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -31,6 +34,10 @@ public class PedidoController {
 
     @Autowired
     private GridFsTemplate gridFsTemplate;
+
+    @Autowired
+    private PdfService pdfService;
+
 
     @PostMapping
     public PedidoResponseDTO criar(@RequestBody @Valid PedidoRequestDTO dto, Authentication auth) {
@@ -219,4 +226,28 @@ public class PedidoController {
         org.springframework.core.io.InputStreamResource body = new org.springframework.core.io.InputStreamResource(resource.getInputStream());
         return new org.springframework.http.ResponseEntity<>(body, headers, org.springframework.http.HttpStatus.OK);
     }
+
+
+    @GetMapping("/{id}/ordem-servico")
+    public ResponseEntity<byte[]> gerarOrdemServico(
+            @PathVariable String id,
+            Authentication auth
+    ) {
+
+        String usuarioId = (String) auth.getPrincipal();
+
+        Pedido pedido = service.buscarPorId(id, usuarioId)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+
+        byte[] pdf = pdfService.gerarOrdemServico(pedido);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=ordem-servico.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
+    }
+
 }
+
+
