@@ -31,4 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
-src/main/resources/application.properties
+
+### Credenciais locais (nunca versionar) ###
+src/main/resources/application-secrets.properties
