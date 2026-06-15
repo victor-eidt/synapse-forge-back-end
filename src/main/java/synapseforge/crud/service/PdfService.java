@@ -371,159 +371,131 @@ public class PdfService {
 
             List lista = new List(List.UNORDERED);
 
-            lista.add(new ListItem("Verificar integridade do modelo 3D", valorFont));
-            lista.add(new ListItem("Conferir escala e proporções", valorFont));
-            lista.add(new ListItem("Aplicar pintura conforme conceito aprovado", valorFont));
-            lista.add(new ListItem("Realizar acabamento e inspeção final", valorFont));
+            lista.add(new ListItem(
+                    "Realizar inspeção inicial do arquivo 3D e verificar possíveis falhas na malha.",
+                    valorFont
+            ));
+
+            lista.add(new ListItem(
+                    "Conferir escala, dimensões e proporções do modelo antes do início da produção.",
+                    valorFont
+            ));
+
+            lista.add(new ListItem(
+                    "Preparar o modelo para impressão e validar a orientação adequada das peças.",
+                    valorFont
+            ));
+
+            lista.add(new ListItem(
+                    "Executar a impressão utilizando os parâmetros definidos para o material selecionado.",
+                    valorFont
+            ));
+
+            lista.add(new ListItem(
+                    "Remover suportes e realizar limpeza das peças impressas.",
+                    valorFont
+            ));
+
+            lista.add(new ListItem(
+                    "Aplicar processos de lixamento e acabamento superficial quando necessário.",
+                    valorFont
+            ));
+
+            lista.add(new ListItem(
+                    "Executar pintura e detalhamento conforme referências aprovadas pelo cliente.",
+                    valorFont
+            ));
+
+            lista.add(new ListItem(
+                    "Realizar inspeção final de qualidade antes da entrega.",
+                    valorFont
+            ));
+
+            lista.add(new ListItem(
+                    "Registrar eventuais observações ou ajustes realizados durante o processo.",
+                    valorFont
+            ));
 
             document.add(lista);
 
             document.add(new Paragraph(" "));
 
+
+            // =====================================================
+            // OBS
             // =====================================================
 
-
-//            Paragraph secaoCores = new Paragraph(
-//                    "GUIA DE CORES",
-//                    secaoFont
-//            );
-//
-//            document.add(secaoCores);
-//
-//            document.add(new Paragraph(" "));
-//
-//            PdfPTable coresTable = new PdfPTable(2);
-//
-//            coresTable.setWidthPercentage(100);
-//            coresTable.setWidths(new int[]{1, 3});
-//
-//            adicionarLinha(
-//                    coresTable,
-//                    "Armadura",
-//                    "Preto Fosco (70%)",
-//                    labelFont,
-//                    valorFont
-//            );
-//
-//            adicionarLinha(
-//                    coresTable,
-//                    "Detalhes",
-//                    "Laranja Metálico (20%)",
-//                    labelFont,
-//                    valorFont
-//            );
-//
-//            adicionarLinha(
-//                    coresTable,
-//                    "Acabamento",
-//                    "Cinza Grafite (10%)",
-//                    labelFont,
-//                    valorFont
-//            );
-//
-//            document.add(coresTable);
-//
-//            document.add(new Paragraph(" "));
-//
-//            document.add(new Paragraph(" "));
-
-            // ====================================================
-            // RESUMO DO ORÇAMENTO
-            // ====================================================
-
-            Paragraph secaoOrcamento = new Paragraph(
-                    "RESUMO DO ORÇAMENTO",
+            Paragraph secaoObs = new Paragraph(
+                    "OBSERVAÇÕES DE PRODUÇÃO",
                     secaoFont
             );
 
-            document.add(secaoOrcamento);
+            document.add(secaoObs);
+
+            document.add(new Paragraph(" "));
+
+            PdfPCell observacaoCell = new PdfPCell(
+                    new Phrase(
+                            "Este documento deve acompanhar todas as etapas da fabricação. "
+                                    + "Qualquer alteração solicitada pelo cliente ou necessidade de retrabalho "
+                                    + "deve ser registrada pelo responsável técnico.",
+                            valorFont
+                    )
+            );
+
+            observacaoCell.setPadding(15);
+            observacaoCell.setBackgroundColor(corSecundaria);
+            observacaoCell.setBorderColor(new Color(220,220,220));
+
+            PdfPTable observacaoTable = new PdfPTable(1);
+            observacaoTable.setWidthPercentage(100);
+            observacaoTable.addCell(observacaoCell);
+
+            document.add(observacaoTable);
 
             document.add(new Paragraph(" "));
 
 
-// Valores temporários.
-// Quando a feature de orçamento estiver pronta,
-// basta trocar por pedido.get...
-            String valorMaterial = "Não informado";
-            String valorImpressao = "Não informado";
-            String valorPintura = "Não informado";
-            String valorAcabamento = "Não informado";
-            String valorTotal = "Não informado";
 
-//            String valorMaterial = pedido.getOrcamento().getMaterial();
-//            String valorImpressao = pedido.getOrcamento().getImpressao();
-//            String valorPintura = pedido.getOrcamento().getPintura();
-//            String valorAcabamento = pedido.getOrcamento().getAcabamento();
-//            String valorTotal = pedido.getOrcamento().getTotal();
 
-            PdfPTable orcamentoTable = new PdfPTable(2);
+            // =====================================================
+            // DECLARACAO
+            // =====================================================
 
-            orcamentoTable.setWidthPercentage(100);
-            orcamentoTable.setWidths(new int[]{1, 3});
 
-            adicionarLinha(
-                    orcamentoTable,
-                    "Material",
-                    valorMaterial,
-                    labelFont,
-                    valorFont
+            Paragraph termoTitulo = new Paragraph(
+                    "DECLARAÇÃO E CIÊNCIA",
+                    secaoFont
             );
 
-            adicionarLinha(
-                    orcamentoTable,
-                    "Impressão",
-                    valorImpressao,
-                    labelFont,
-                    valorFont
-            );
-
-            adicionarLinha(
-                    orcamentoTable,
-                    "Pintura",
-                    valorPintura,
-                    labelFont,
-                    valorFont
-            );
-
-            adicionarLinha(
-                    orcamentoTable,
-                    "Acabamento",
-                    valorAcabamento,
-                    labelFont,
-                    valorFont
-            );
-
-
-// Linha TOTAL destacada
-            Font totalFont = new Font(
-                    Font.HELVETICA,
-                    11,
-                    Font.BOLD,
-                    corPrimaria
-            );
-
-            PdfPCell totalLabel = new PdfPCell(
-                    new Phrase("TOTAL", totalFont)
-            );
-
-            totalLabel.setPadding(10);
-            totalLabel.setBorderColor(new Color(230, 230, 230));
-            totalLabel.setBackgroundColor(corSecundaria);
-
-            PdfPCell totalValor = new PdfPCell(
-                    new Phrase(valorTotal, totalFont)
-            );
-
-            totalValor.setPadding(10);
-            totalValor.setBorderColor(new Color(230, 230, 230));
-            totalValor.setBackgroundColor(corSecundaria);
-
-            orcamentoTable.addCell(totalLabel);
-            orcamentoTable.addCell(totalValor);
-
-            document.add(orcamentoTable);
+            document.add(termoTitulo);
 
             document.add(new Paragraph(" "));
+
+            Paragraph termo = new Paragraph(
+                    "Por meio deste documento, as partes declaram estar cientes das "
+                            + "informações referentes ao projeto descrito nesta Ordem de Serviço. "
+                            + "O responsável técnico compromete-se a executar as atividades de "
+                            + "produção conforme as especificações registradas, enquanto o cliente "
+                            + "reconhece que eventuais modificações posteriores poderão exigir "
+                            + "reavaliação dos prazos e condições inicialmente estabelecidos.",
+                    valorFont
+            );
+
+            termo.setAlignment(Element.ALIGN_JUSTIFIED);
+
+            document.add(termo);
+
+            document.add(new Paragraph(" "));
+            document.add(new Paragraph(" "));
+
+
+
+
+
+
+
+
 
             // =====================================================
             // DATA
