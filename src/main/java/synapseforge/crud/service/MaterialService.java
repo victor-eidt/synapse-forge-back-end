@@ -54,6 +54,15 @@ public class MaterialService {
         material.setDensidadeGcm3(dto.getDensidadeGcm3());
         material.setPrecoPorGrama(dto.getPrecoPorGrama());
         material.setAtivo(dto.getAtivo() == null ? Boolean.TRUE : dto.getAtivo());
+        if (dto.getUnidade() != null) {
+            material.setUnidade(dto.getUnidade());
+        }
+        if (dto.getSaldo() != null) {
+            material.setSaldo(dto.getSaldo());
+        }
+        if (dto.getEstoqueMinimo() != null) {
+            material.setEstoqueMinimo(dto.getEstoqueMinimo());
+        }
     }
 
     private MaterialResponseDTO toResponseDTO(Material material) {
@@ -63,7 +72,10 @@ public class MaterialService {
                 material.getTipo(),
                 material.getDensidadeGcm3(),
                 material.getPrecoPorGrama(),
-                material.getAtivo()
+                material.getAtivo(),
+                material.getUnidade(),
+                material.getSaldo(),
+                material.getEstoqueMinimo()
         );
     }
 }
