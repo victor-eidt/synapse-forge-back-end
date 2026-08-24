@@ -6,16 +6,21 @@ import synapseforge.crud.DTO.Estoque.AlertaEstoqueResponseDTO;
 import synapseforge.crud.DTO.Estoque.MovimentoEstoqueResponseDTO;
 import synapseforge.crud.DTO.Estoque.SaldoInsumoResponseDTO;
 import synapseforge.crud.exception.EstoqueInsuficienteException;
+import synapseforge.crud.infrastructure.entity.ConsumoPedido;
 import synapseforge.crud.infrastructure.entity.Cor;
+import synapseforge.crud.infrastructure.entity.ItemConsumo;
 import synapseforge.crud.infrastructure.entity.Material;
 import synapseforge.crud.infrastructure.entity.MovimentoEstoque;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.infrastructure.entity.TipoInsumo;
 import synapseforge.crud.infrastructure.entity.TipoMovimento;
 import synapseforge.crud.infrastructure.entity.UnidadeMedida;
+import synapseforge.crud.infrastructure.repository.ConsumoPedidoRepository;
 import synapseforge.crud.infrastructure.repository.CorRepository;
 import synapseforge.crud.infrastructure.repository.MaterialRepository;
 import synapseforge.crud.infrastructure.repository.MovimentoEstoqueRepository;
+import synapseforge.crud.service.politica.PoliticaConsumo;
+import synapseforge.crud.service.politica.PoliticaConsumoResolver;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -31,6 +36,8 @@ public class EstoqueService {
     private final MaterialRepository materialRepository;
     private final CorRepository corRepository;
     private final MovimentoEstoqueRepository movimentoRepository;
+    private final ConsumoPedidoRepository consumoPedidoRepository;
+    private final PoliticaConsumoResolver politicaResolver;
 
     public MovimentoEstoqueResponseDTO registrarEntrada(TipoInsumo tipoInsumo, String insumoId, BigDecimal quantidade,
                                                         UnidadeMedida unidade, String motivo, String usuarioId) {
@@ -102,10 +109,75 @@ public class EstoqueService {
         return alertas;
     }
 
+    public void baixarPorEtapa(String pedidoId, StatusPedido etapa, String usuarioId) {
+        ConsumoPedido consumo = consumoPedidoRepository.findByPedidoId(pedidoId).orElse(null);
+        if (consumo == null) {
+            return;
+        }
+        PoliticaConsumo politica = politicaResolver.paraEtapa(etapa).orElse(null);
+        if (politica == null) {
+            return;
+        }
+
+        List<BaixaPendente> pendentes = new ArrayList<>();
+        List<EstoqueInsuficienteException.Falta> faltas = new ArrayList<>();
+        for (ItemConsumo item : politica.itensDe(consumo)) {
+            String chave = chaveIdempotencia(pedidoId, item.getTipoInsumo(), item.getInsumoId(), etapa, TipoMovimento.BAIXA);
+            if (movimentoRepository.findByChaveIdempotencia(chave).isPresent()) {
+                continue;
+            }
+            InsumoEstoque insumo = carregarInsumo(item.getTipoInsumo(), item.getInsumoId());
+            BigDecimal quantidadeBase = converterParaBase(insumo, item.getQuantidade(), item.getUnidade());
+            if (insumo.saldo.compareTo(quantidadeBase) < 0) {
+                faltas.add(new EstoqueInsuficienteException.Falta(insumo.nome, quantidadeBase, insumo.saldo));
+            } else {
+                pendentes.add(new BaixaPendente(insumo, quantidadeBase, chave));
+            }
+        }
+        if (!faltas.isEmpty()) {
+            throw new EstoqueInsuficienteException(faltas);
+        }
+
+        for (BaixaPendente pendente : pendentes) {
+            BigDecimal novoSaldo = pendente.insumo.saldo.subtract(pendente.quantidadeBase);
+            salvarSaldo(pendente.insumo, novoSaldo);
+            movimentoRepository.save(novoMovimento(pendente.insumo, TipoMovimento.BAIXA, pendente.quantidadeBase,
+                    novoSaldo, pedidoId, etapa, "Consumo do pedido na etapa " + etapa, usuarioId, pendente.chave));
+        }
+    }
+
+    public void estornarPorEtapa(String pedidoId, StatusPedido etapa, String usuarioId) {
+        List<MovimentoEstoque> baixas = movimentoRepository.findByPedidoId(pedidoId).stream()
+                .filter(m -> m.getTipo() == TipoMovimento.BAIXA && m.getEtapaOrigem() == etapa)
+                .toList();
+
+        for (MovimentoEstoque baixa : baixas) {
+            String chaveEstorno = chaveIdempotencia(pedidoId, baixa.getTipoInsumo(), baixa.getInsumoId(),
+                    etapa, TipoMovimento.ESTORNO);
+            if (movimentoRepository.findByChaveIdempotencia(chaveEstorno).isPresent()) {
+                continue;
+            }
+            InsumoEstoque insumo = carregarInsumo(baixa.getTipoInsumo(), baixa.getInsumoId());
+            BigDecimal novoSaldo = insumo.saldo.add(baixa.getQuantidade());
+            salvarSaldo(insumo, novoSaldo);
+            MovimentoEstoque estorno = novoMovimento(insumo, TipoMovimento.ESTORNO, baixa.getQuantidade(), novoSaldo,
+                    pedidoId, etapa, "Estorno da baixa da etapa " + etapa, usuarioId, chaveEstorno);
+            // estorno devolve exatamente o custo registrado na baixa, não o custo atual do insumo
+            estorno.setCustoUnitario(baixa.getCustoUnitario());
+            estorno.setCustoTotal(baixa.getCustoTotal());
+            movimentoRepository.save(estorno);
+        }
+    }
+
     public List<MovimentoEstoqueResponseDTO> historicoPorInsumo(TipoInsumo tipoInsumo, String insumoId) {
         return movimentoRepository.findByTipoInsumoAndInsumoIdOrderByCriadoEmDesc(tipoInsumo, insumoId).stream()
                 .map(this::toMovimentoDTO)
                 .toList();
+    }
+
+    private String chaveIdempotencia(String pedidoId, TipoInsumo tipoInsumo, String insumoId,
+                                     StatusPedido etapaOrigem, TipoMovimento tipo) {
+        return pedidoId + ":" + tipoInsumo + ":" + insumoId + ":" + etapaOrigem + ":" + tipo;
     }
 
     private BigDecimal converterParaBase(InsumoEstoque insumo, BigDecimal quantidade, UnidadeMedida unidade) {
@@ -195,6 +267,8 @@ public class EstoqueService {
     private BigDecimal zeroSeNulo(BigDecimal valor) {
         return valor == null ? BigDecimal.ZERO : valor;
     }
+
+    private record BaixaPendente(InsumoEstoque insumo, BigDecimal quantidadeBase, String chave) {}
 
     // visão uniforme de Material e Cor para as operações de saldo
     private static class InsumoEstoque {
