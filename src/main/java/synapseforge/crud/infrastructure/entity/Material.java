@@ -24,4 +24,10 @@ public class Material {
     private Double densidadeGcm3;
     private BigDecimal precoPorGrama;
     private Boolean ativo = true;
+
+    private UnidadeMedida unidade = UnidadeMedida.G;
+
+    // saldo e estoqueMinimo mantidos na unidade base de `unidade` (G, ML ou UN)
+    private BigDecimal saldo = BigDecimal.ZERO;
+    private BigDecimal estoqueMinimo = BigDecimal.ZERO;
 }
