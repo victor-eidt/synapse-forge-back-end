@@ -9,7 +9,6 @@ import org.springframework.security.core.Authentication;
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.User;
-import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.service.UserService;
 
 import java.util.List;
@@ -57,7 +56,52 @@ public class UserController {
 
 
     // =========================================================
-    // BUSCAR USUÁRIO
+    // BUSCAR PRÓPRIO USUÁRIO
+    // =========================================================
+
+    @PreAuthorize("hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')")
+    @GetMapping("/me")
+    public UserResponseDTO meuPerfil(
+            Authentication auth
+    ) {
+
+        String usuarioId = (String) auth.getPrincipal();
+
+        User user = service.buscarPorId(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        return service.toResponseDTO(user);
+    }
+
+
+    // =========================================================
+    // ATUALIZAR PRÓPRIO USUÁRIO
+    // =========================================================
+
+    @PreAuthorize("hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')")
+    @PutMapping("/me")
+    public UserResponseDTO atualizarMeuPerfil(
+            @RequestBody UserRequestDTO dto,
+            Authentication auth
+    ) {
+
+        String usuarioId = (String) auth.getPrincipal();
+
+        User atualizado = service.atualizarProprioPerfil(
+                usuarioId,
+                dto
+        );
+
+        return service.toResponseDTO(atualizado);
+    }
+
+
+    // =========================================================
+    // BUSCAR USUÁRIO POR ID
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
@@ -68,7 +112,9 @@ public class UserController {
 
         User user = service.buscarPorId(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Usuário não encontrado")
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
                 );
 
         return service.toResponseDTO(user);
