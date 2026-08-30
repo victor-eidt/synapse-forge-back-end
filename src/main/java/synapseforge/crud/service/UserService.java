@@ -325,4 +325,34 @@ public class UserService {
 
         repository.save(user);
     }
+
+    // =========================================================
+    // ATUALIZAR DADOS DO PERFIL
+    // =========================================================
+
+    public User atualizarProprioPerfil(
+            String id,
+            UserRequestDTO dto
+    ) {
+
+        User user = repository.findById(id)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        user.setNome(dto.getNome());
+        user.setEmail(dto.getEmail());
+        user.setCpf(dto.getCpf());
+        user.setTelefone(dto.getTelefone());
+
+        if (dto.getSenha() != null && !dto.getSenha().isBlank()) {
+            user.setSenha(
+                    encoder.encode(dto.getSenha())
+            );
+        }
+
+        return repository.save(user);
+    }
 }
