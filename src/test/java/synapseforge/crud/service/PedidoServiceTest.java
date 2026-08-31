@@ -29,6 +29,9 @@ class PedidoServiceTest {
     @Mock
     private GridFsTemplate gridFsTemplate;
 
+    @Mock
+    private EstoqueService estoqueService;
+
     @InjectMocks
     private PedidoService service;
 

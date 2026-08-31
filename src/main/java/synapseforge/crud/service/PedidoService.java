@@ -24,6 +24,9 @@ public class PedidoService {
     @Autowired
     private PedidoRepository repository;
 
+    @Autowired
+    private EstoqueService estoqueService;
+
     public Pedido toEntity(PedidoRequestDTO dto, String usuarioId) {
         Pedido pedido = new Pedido();
         pedido.setUsuarioId(usuarioId);
@@ -129,7 +132,10 @@ public class PedidoService {
             throw new RuntimeException("Pedido já está finalizado");
         }
 
-        pedido.setStatus(StatusPedido.ETAPAS_PRODUCAO.get(indiceAtual + 1));
+        StatusPedido novoStatus = StatusPedido.ETAPAS_PRODUCAO.get(indiceAtual + 1);
+        pedido.setStatus(novoStatus);
+        // se o estoque for insuficiente a exceção sobe e o pedido não é salvo: a etapa não muda
+        estoqueService.baixarPorEtapa(id, novoStatus, usuarioId);
         pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
     }
@@ -154,10 +160,15 @@ public class PedidoService {
         }
 
         pedido.setStatus(StatusPedido.ETAPAS_PRODUCAO.get(indiceAtual - 1));
+        // o estorno é da etapa abandonada (status atual), não da etapa de destino
+        estoqueService.estornarPorEtapa(id, statusAtual, usuarioId);
         pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
     }
 
+    // LIMITAÇÃO CONHECIDA: este método aceita trocar o status diretamente, sem passar pelo
+    // gatilho de baixa/estorno de estoque de avancarStatus/regredirStatus — é uma porta
+    // lateral que ignora o estoque. Decisão pendente de alinhamento com o grupo.
     public Pedido atualizar(String id, String usuarioId, Pedido dados) {
         Pedido pedido = repository.findById(id)
                 .filter(p -> usuarioId.equals(p.getUsuarioId()))
