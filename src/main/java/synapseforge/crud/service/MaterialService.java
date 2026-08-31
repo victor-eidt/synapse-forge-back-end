@@ -5,8 +5,10 @@ import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.Material.MaterialRequestDTO;
 import synapseforge.crud.DTO.Material.MaterialResponseDTO;
 import synapseforge.crud.infrastructure.entity.Material;
+import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import synapseforge.crud.infrastructure.repository.MaterialRepository;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -18,6 +20,14 @@ public class MaterialService {
     public MaterialResponseDTO criar(MaterialRequestDTO dto) {
         Material material = new Material();
         aplicarDados(material, dto);
+        if (material.getUnidade() == null) {
+            material.setUnidade(UnidadeMedida.G);
+        }
+        if (material.getEstoqueMinimo() == null) {
+            material.setEstoqueMinimo(BigDecimal.ZERO);
+        }
+        // saldo sempre nasce zerado; entra no estoque apenas por movimentação
+        material.setSaldo(BigDecimal.ZERO);
         return toResponseDTO(repository.save(material));
     }
 
@@ -56,9 +66,6 @@ public class MaterialService {
         material.setAtivo(dto.getAtivo() == null ? Boolean.TRUE : dto.getAtivo());
         if (dto.getUnidade() != null) {
             material.setUnidade(dto.getUnidade());
-        }
-        if (dto.getSaldo() != null) {
-            material.setSaldo(dto.getSaldo());
         }
         if (dto.getEstoqueMinimo() != null) {
             material.setEstoqueMinimo(dto.getEstoqueMinimo());

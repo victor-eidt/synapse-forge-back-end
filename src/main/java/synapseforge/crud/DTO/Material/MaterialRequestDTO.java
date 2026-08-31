@@ -32,9 +32,8 @@ public class MaterialRequestDTO {
 
     private UnidadeMedida unidade;
 
-    @PositiveOrZero
-    private BigDecimal saldo;
-
+    // saldo não entra no request: só muda por movimentação de estoque
+    // (entrada, ajuste, baixa, estorno), nunca por edição de cadastro
     @PositiveOrZero
     private BigDecimal estoqueMinimo;
 }
