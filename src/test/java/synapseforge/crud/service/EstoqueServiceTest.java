@@ -111,6 +111,25 @@ class EstoqueServiceTest {
     }
 
     @Test
+    void reentrarNaEtapaAposEstornoNaoDebitaNovamente() {
+        // Decisão de projeto: um pedido consome seu material uma única vez; retrabalho não
+        // recobra insumo. A chave de idempotência da BAIXA continua existindo mesmo depois
+        // do ESTORNO, então um pedido que volta a entrar na etapa não é debitado de novo.
+        when(consumoPedidoRepository.findByPedidoId("ped1"))
+                .thenReturn(Optional.of(ficha("ped1",
+                        item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
+        MovimentoEstoque baixaOriginal = new MovimentoEstoque();
+        baixaOriginal.setTipo(TipoMovimento.BAIXA);
+        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA"))
+                .thenReturn(Optional.of(baixaOriginal));
+
+        service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
+
+        verify(materialRepository, never()).save(any());
+        verify(movimentoRepository, never()).save(any());
+    }
+
+    @Test
     void estornoDevolveOSaldoEMantemOsDoisMovimentos() {
         Material resina = material("mat1", "Resina Cinza", "400", "100");
         MovimentoEstoque baixa = new MovimentoEstoque();
