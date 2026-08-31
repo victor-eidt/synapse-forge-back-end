@@ -22,7 +22,12 @@ public class Pedido {
     @Id
     private String id;
 
+    // Usuário que criou/responsável pelo pedido
     private String usuarioId;
+
+    // Cliente ao qual o pedido está vinculado
+    // Pode ser null quando nenhum cliente for selecionado
+    private String clienteId;
 
     private String cliente;
     private String projeto;

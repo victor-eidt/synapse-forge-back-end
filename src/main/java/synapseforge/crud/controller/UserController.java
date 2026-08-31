@@ -56,6 +56,21 @@ public class UserController {
 
 
     // =========================================================
+    // LISTAR CLIENTES
+    // =========================================================
+
+    @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
+    @GetMapping("/clientes")
+    public List<UserResponseDTO> listarClientes() {
+
+        return service.listarClientes()
+                .stream()
+                .map(service::toResponseDTO)
+                .toList();
+    }
+
+
+    // =========================================================
     // BUSCAR PRÓPRIO USUÁRIO
     // =========================================================
 
@@ -65,14 +80,16 @@ public class UserController {
             Authentication auth
     ) {
 
-        String usuarioId = (String) auth.getPrincipal();
+        String usuarioId =
+                (String) auth.getPrincipal();
 
-        User user = service.buscarPorId(usuarioId)
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "Usuário não encontrado"
-                        )
-                );
+        User user =
+                service.buscarPorId(usuarioId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Usuário não encontrado"
+                                )
+                        );
 
         return service.toResponseDTO(user);
     }
@@ -89,14 +106,18 @@ public class UserController {
             Authentication auth
     ) {
 
-        String usuarioId = (String) auth.getPrincipal();
+        String usuarioId =
+                (String) auth.getPrincipal();
 
-        User atualizado = service.atualizarProprioPerfil(
-                usuarioId,
-                dto
+        User atualizado =
+                service.atualizarProprioPerfil(
+                        usuarioId,
+                        dto
+                );
+
+        return service.toResponseDTO(
+                atualizado
         );
-
-        return service.toResponseDTO(atualizado);
     }
 
 
@@ -110,14 +131,17 @@ public class UserController {
             @PathVariable String id
     ) {
 
-        User user = service.buscarPorId(id)
-                .orElseThrow(() ->
-                        new RuntimeException(
-                                "Usuário não encontrado"
-                        )
-                );
+        User user =
+                service.buscarPorId(id)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Usuário não encontrado"
+                                )
+                        );
 
-        return service.toResponseDTO(user);
+        return service.toResponseDTO(
+                user
+        );
     }
 
 
@@ -132,12 +156,15 @@ public class UserController {
             @RequestBody UserRequestDTO dto
     ) {
 
-        User atualizado = service.atualizar(
-                id,
-                dto
-        );
+        User atualizado =
+                service.atualizar(
+                        id,
+                        dto
+                );
 
-        return service.toResponseDTO(atualizado);
+        return service.toResponseDTO(
+                atualizado
+        );
     }
 
 
@@ -165,11 +192,13 @@ public class UserController {
             @RequestBody @Valid List<UserRequestDTO> dtos
     ) {
 
-        List<User> users = dtos.stream()
-                .map(service::toEntity)
-                .toList();
+        List<User> users =
+                dtos.stream()
+                        .map(service::toEntity)
+                        .toList();
 
-        List<User> salvos = service.criarVarios(users);
+        List<User> salvos =
+                service.criarVarios(users);
 
         return salvos.stream()
                 .map(service::toResponseDTO)

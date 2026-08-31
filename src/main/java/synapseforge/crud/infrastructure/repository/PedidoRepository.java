@@ -10,5 +10,15 @@ public interface PedidoRepository extends MongoRepository<Pedido, String> {
 
     List<Pedido> findByUsuarioId(String usuarioId);
 
-    List<Pedido> findByUsuarioIdAndStatus(String usuarioId, StatusPedido status);
+    List<Pedido> findByUsuarioIdAndStatus(
+            String usuarioId,
+            StatusPedido status
+    );
+
+    List<Pedido> findByClienteId(String clienteId);
+
+    List<Pedido> findByClienteIdAndStatus(
+            String clienteId,
+            StatusPedido status
+    );
 }
