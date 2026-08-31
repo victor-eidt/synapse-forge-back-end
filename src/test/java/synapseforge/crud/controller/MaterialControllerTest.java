@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import synapseforge.crud.DTO.Material.MaterialRequestDTO;
 import synapseforge.crud.DTO.Material.MaterialResponseDTO;
+import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import synapseforge.crud.service.MaterialService;
 
 import java.math.BigDecimal;
@@ -27,7 +28,7 @@ class MaterialControllerTest {
     @Test
     void criarDeveRetornarMaterialCriado() {
         MaterialRequestDTO dto = new MaterialRequestDTO();
-        MaterialResponseDTO expected = new MaterialResponseDTO("m-1", "PLA", "Filamento", 1.24, new BigDecimal("0.05"), true);
+        MaterialResponseDTO expected = new MaterialResponseDTO("m-1", "PLA", "Filamento", 1.24, new BigDecimal("0.05"), true, UnidadeMedida.G, new BigDecimal("0"), new BigDecimal("0"));
         when(service.criar(dto)).thenReturn(expected);
 
         assertEquals("PLA", controller.criar(dto).getNome());
@@ -36,7 +37,7 @@ class MaterialControllerTest {
 
     @Test
     void listarAtivosDeveRetornarLista() {
-        MaterialResponseDTO expected = new MaterialResponseDTO("m-1", "PLA", "Filamento", 1.24, new BigDecimal("0.05"), true);
+        MaterialResponseDTO expected = new MaterialResponseDTO("m-1", "PLA", "Filamento", 1.24, new BigDecimal("0.05"), true, UnidadeMedida.G, new BigDecimal("0"), new BigDecimal("0"));
         when(service.listarAtivos()).thenReturn(List.of(expected));
 
         assertEquals(1, controller.listarAtivos().size());
@@ -44,7 +45,7 @@ class MaterialControllerTest {
 
     @Test
     void buscarPorIdDeveRetornarMaterial() {
-        MaterialResponseDTO expected = new MaterialResponseDTO("m-1", "PLA", "Filamento", 1.24, new BigDecimal("0.05"), true);
+        MaterialResponseDTO expected = new MaterialResponseDTO("m-1", "PLA", "Filamento", 1.24, new BigDecimal("0.05"), true, UnidadeMedida.G, new BigDecimal("0"), new BigDecimal("0"));
         when(service.buscarPorId("m-1")).thenReturn(expected);
 
         assertEquals("PLA", controller.buscarPorId("m-1").getNome());
@@ -53,7 +54,7 @@ class MaterialControllerTest {
     @Test
     void atualizarDeveRetornarMaterialAtualizado() {
         MaterialRequestDTO dto = new MaterialRequestDTO();
-        MaterialResponseDTO expected = new MaterialResponseDTO("m-1", "PETG", "Filamento", 1.27, new BigDecimal("0.08"), true);
+        MaterialResponseDTO expected = new MaterialResponseDTO("m-1", "PETG", "Filamento", 1.27, new BigDecimal("0.08"), true, UnidadeMedida.G, new BigDecimal("0"), new BigDecimal("0"));
         when(service.atualizar("m-1", dto)).thenReturn(expected);
 
         assertEquals("PETG", controller.atualizar("m-1", dto).getNome());
