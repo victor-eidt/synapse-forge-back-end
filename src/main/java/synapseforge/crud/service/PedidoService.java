@@ -24,6 +24,9 @@ public class PedidoService {
     @Autowired
     private PedidoRepository repository;
 
+    @Autowired
+    private EstoqueService estoqueService;
+
     public Pedido toEntity(PedidoRequestDTO dto, String usuarioId) {
         Pedido pedido = new Pedido();
         pedido.setUsuarioId(usuarioId);
@@ -119,15 +122,20 @@ public class PedidoService {
         if (statusAtual == null) {
             throw new RuntimeException("Status do pedido inválido");
         }
+        if (statusAtual == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido cancelado não pode mudar de etapa");
+        }
 
-        StatusPedido[] valores = StatusPedido.values();
-        int indiceAtual = statusAtual.ordinal();
+        int indiceAtual = StatusPedido.indiceEtapaProducao(statusAtual);
 
-        if (indiceAtual >= valores.length - 1) {
+        if (indiceAtual >= StatusPedido.ETAPAS_PRODUCAO.size() - 1) {
             throw new RuntimeException("Pedido já está finalizado");
         }
 
-        pedido.setStatus(valores[indiceAtual + 1]);
+        StatusPedido novoStatus = StatusPedido.ETAPAS_PRODUCAO.get(indiceAtual + 1);
+        pedido.setStatus(novoStatus);
+        // se o estoque for insuficiente a exceção sobe e o pedido não é salvo: a etapa não muda
+        estoqueService.baixarPorEtapa(id, novoStatus, usuarioId);
         pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
     }
@@ -141,18 +149,51 @@ public class PedidoService {
         if (statusAtual == null) {
             throw new RuntimeException("Status do pedido inválido");
         }
+        if (statusAtual == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido cancelado não pode mudar de etapa");
+        }
 
-        int indiceAtual = statusAtual.ordinal();
+        int indiceAtual = StatusPedido.indiceEtapaProducao(statusAtual);
 
         if (indiceAtual <= 0) {
             throw new RuntimeException("Pedido já está na primeira etapa");
         }
 
-        pedido.setStatus(StatusPedido.values()[indiceAtual - 1]);
+        pedido.setStatus(StatusPedido.ETAPAS_PRODUCAO.get(indiceAtual - 1));
+        // o estorno é da etapa abandonada (status atual), não da etapa de destino
+        estoqueService.estornarPorEtapa(id, statusAtual, usuarioId);
         pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
     }
 
+    public Pedido cancelar(String id, String usuarioId) {
+        Pedido pedido = repository.findById(id)
+                .filter(p -> usuarioId.equals(p.getUsuarioId()))
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+
+        StatusPedido statusAtual = pedido.getStatus();
+        if (statusAtual == null) {
+            throw new RuntimeException("Status do pedido inválido");
+        }
+        if (statusAtual == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido já está cancelado");
+        }
+        if (statusAtual == StatusPedido.FINALIZADO) {
+            throw new RuntimeException("Pedido finalizado não pode ser cancelado");
+        }
+
+        // Cancelar NÃO estorna: material já consumido virou peça e não volta à prateleira,
+        // e o custo do pedido permanece registrado. Diferente de regredir, que estorna por
+        // ser correção de fluxo (a etapa não aconteceu de fato). Etapas nunca alcançadas
+        // nunca foram debitadas, então seguem no estoque sem qualquer ação aqui.
+        pedido.setStatus(StatusPedido.CANCELADO);
+        pedido.setAtualizadoEm(LocalDateTime.now());
+        return repository.save(pedido);
+    }
+
+    // LIMITAÇÃO CONHECIDA: este método aceita trocar o status diretamente, sem passar pelo
+    // gatilho de baixa/estorno de estoque de avancarStatus/regredirStatus — é uma porta
+    // lateral que ignora o estoque. Decisão pendente de alinhamento com o grupo.
     public Pedido atualizar(String id, String usuarioId, Pedido dados) {
         Pedido pedido = repository.findById(id)
                 .filter(p -> usuarioId.equals(p.getUsuarioId()))
