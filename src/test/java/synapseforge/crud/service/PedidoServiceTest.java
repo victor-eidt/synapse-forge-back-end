@@ -12,10 +12,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import synapseforge.crud.DTO.Pedido.PedidoRequestDTO;
+import synapseforge.crud.exception.EstoqueInsuficienteException;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.infrastructure.repository.PedidoRepository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -93,6 +95,89 @@ class PedidoServiceTest {
         Pedido result = service.regredirStatus("p-1", "user-1");
 
         assertEquals(StatusPedido.MODELAGEM, result.getStatus());
+    }
+
+    @Test
+    void avancarParaImpressaoDeveBaixarEstoqueDaEtapa() {
+        Pedido pedido = new Pedido();
+        pedido.setId("p-1");
+        pedido.setUsuarioId("user-1");
+        pedido.setStatus(StatusPedido.MODELAGEM);
+
+        when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
+        when(repository.save(pedido)).thenReturn(pedido);
+
+        service.avancarStatus("p-1", "user-1");
+
+        verify(estoqueService).baixarPorEtapa("p-1", StatusPedido.IMPRESSAO, "user-1");
+    }
+
+    @Test
+    void baixaComEstoqueInsuficienteImpedeOSaveDoPedido() {
+        Pedido pedido = new Pedido();
+        pedido.setId("p-1");
+        pedido.setUsuarioId("user-1");
+        pedido.setStatus(StatusPedido.MODELAGEM);
+
+        when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
+        doThrow(new EstoqueInsuficienteException(List.of(
+                new EstoqueInsuficienteException.Falta("Resina Cinza", new BigDecimal("100"), new BigDecimal("50")))))
+                .when(estoqueService).baixarPorEtapa("p-1", StatusPedido.IMPRESSAO, "user-1");
+
+        assertThrows(EstoqueInsuficienteException.class, () -> service.avancarStatus("p-1", "user-1"));
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void regredirDeImpressaoDeveEstornarAEtapaAbandonada() {
+        Pedido pedido = new Pedido();
+        pedido.setId("p-1");
+        pedido.setUsuarioId("user-1");
+        pedido.setStatus(StatusPedido.IMPRESSAO);
+
+        when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
+        when(repository.save(pedido)).thenReturn(pedido);
+
+        service.regredirStatus("p-1", "user-1");
+
+        verify(estoqueService).estornarPorEtapa("p-1", StatusPedido.IMPRESSAO, "user-1");
+    }
+
+    @Test
+    void cancelarDeveDefinirCanceladoEEstornarAsEtapasPercorridas() {
+        Pedido pedido = new Pedido();
+        pedido.setId("p-1");
+        pedido.setUsuarioId("user-1");
+        pedido.setStatus(StatusPedido.IMPRESSAO);
+
+        when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
+        when(repository.save(pedido)).thenReturn(pedido);
+
+        Pedido result = service.cancelar("p-1", "user-1");
+
+        assertEquals(StatusPedido.CANCELADO, result.getStatus());
+        verify(estoqueService).estornarPorEtapa("p-1", StatusPedido.MODELAGEM, "user-1");
+        verify(estoqueService).estornarPorEtapa("p-1", StatusPedido.IMPRESSAO, "user-1");
+    }
+
+    @Test
+    void pedidoCanceladoNaoAvancaNemRegride() {
+        Pedido pedido = new Pedido();
+        pedido.setId("p-1");
+        pedido.setUsuarioId("user-1");
+        pedido.setStatus(StatusPedido.CANCELADO);
+
+        when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
+
+        RuntimeException aoAvancar = assertThrows(RuntimeException.class,
+                () -> service.avancarStatus("p-1", "user-1"));
+        RuntimeException aoRegredir = assertThrows(RuntimeException.class,
+                () -> service.regredirStatus("p-1", "user-1"));
+
+        assertEquals("Pedido cancelado não pode mudar de etapa", aoAvancar.getMessage());
+        assertEquals("Pedido cancelado não pode mudar de etapa", aoRegredir.getMessage());
+        verify(repository, never()).save(any());
     }
 
     @Test
