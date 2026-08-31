@@ -9,6 +9,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -21,6 +23,15 @@ public class Orcamento {
     private String id;
 
     private String materialId;
+
+    // Dados comerciais compartilhados com o pedido.
+    private String usuarioId;
+    private String cliente;
+    private String projeto;
+    private String descricao;
+    private LocalDate prazo;
+    private StatusOrcamento status;
+    private String pedidoId;
 
     // Inputs
     private Double volumeCm3;
@@ -38,4 +49,7 @@ public class Orcamento {
     private BigDecimal precoFinal;
 
     private LocalDateTime criadoEm;
+    private String objeto3DFileId;
+
+    private List<String> imagensReferenciaFileIds;
 }
