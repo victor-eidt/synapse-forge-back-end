@@ -182,13 +182,10 @@ public class PedidoService {
             throw new RuntimeException("Pedido finalizado não pode ser cancelado");
         }
 
-        // estorna todas as etapas de produção pelas quais o pedido passou, inclusive a atual;
-        // etapas que não geraram baixa são no-op no estorno
-        int indiceAtual = StatusPedido.indiceEtapaProducao(statusAtual);
-        for (int i = 0; i <= indiceAtual; i++) {
-            estoqueService.estornarPorEtapa(id, StatusPedido.ETAPAS_PRODUCAO.get(i), usuarioId);
-        }
-
+        // Cancelar NÃO estorna: material já consumido virou peça e não volta à prateleira,
+        // e o custo do pedido permanece registrado. Diferente de regredir, que estorna por
+        // ser correção de fluxo (a etapa não aconteceu de fato). Etapas nunca alcançadas
+        // nunca foram debitadas, então seguem no estoque sem qualquer ação aqui.
         pedido.setStatus(StatusPedido.CANCELADO);
         pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
