@@ -119,15 +119,17 @@ public class PedidoService {
         if (statusAtual == null) {
             throw new RuntimeException("Status do pedido inválido");
         }
+        if (statusAtual == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido cancelado não pode mudar de etapa");
+        }
 
-        StatusPedido[] valores = StatusPedido.values();
-        int indiceAtual = statusAtual.ordinal();
+        int indiceAtual = StatusPedido.indiceEtapaProducao(statusAtual);
 
-        if (indiceAtual >= valores.length - 1) {
+        if (indiceAtual >= StatusPedido.ETAPAS_PRODUCAO.size() - 1) {
             throw new RuntimeException("Pedido já está finalizado");
         }
 
-        pedido.setStatus(valores[indiceAtual + 1]);
+        pedido.setStatus(StatusPedido.ETAPAS_PRODUCAO.get(indiceAtual + 1));
         pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
     }
@@ -141,14 +143,17 @@ public class PedidoService {
         if (statusAtual == null) {
             throw new RuntimeException("Status do pedido inválido");
         }
+        if (statusAtual == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido cancelado não pode mudar de etapa");
+        }
 
-        int indiceAtual = statusAtual.ordinal();
+        int indiceAtual = StatusPedido.indiceEtapaProducao(statusAtual);
 
         if (indiceAtual <= 0) {
             throw new RuntimeException("Pedido já está na primeira etapa");
         }
 
-        pedido.setStatus(StatusPedido.values()[indiceAtual - 1]);
+        pedido.setStatus(StatusPedido.ETAPAS_PRODUCAO.get(indiceAtual - 1));
         pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
     }
