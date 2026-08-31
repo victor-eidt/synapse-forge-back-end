@@ -120,6 +120,13 @@ public class PedidoController {
         return service.toResponseDTO(pedido);
     }
 
+    @PatchMapping("/{id}/cancelar")
+    public PedidoResponseDTO cancelar(@PathVariable String id, Authentication auth) {
+        String usuarioId = (String) auth.getPrincipal();
+        Pedido pedido = service.cancelar(id, usuarioId);
+        return service.toResponseDTO(pedido);
+    }
+
     @PutMapping(value = "/{id}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public PedidoResponseDTO atualizar(@PathVariable String id, @RequestBody @Valid PedidoRequestDTO dto, Authentication auth) {
         String usuarioId = (String) auth.getPrincipal();

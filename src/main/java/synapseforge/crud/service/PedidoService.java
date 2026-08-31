@@ -166,6 +166,34 @@ public class PedidoService {
         return repository.save(pedido);
     }
 
+    public Pedido cancelar(String id, String usuarioId) {
+        Pedido pedido = repository.findById(id)
+                .filter(p -> usuarioId.equals(p.getUsuarioId()))
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+
+        StatusPedido statusAtual = pedido.getStatus();
+        if (statusAtual == null) {
+            throw new RuntimeException("Status do pedido inválido");
+        }
+        if (statusAtual == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido já está cancelado");
+        }
+        if (statusAtual == StatusPedido.FINALIZADO) {
+            throw new RuntimeException("Pedido finalizado não pode ser cancelado");
+        }
+
+        // estorna todas as etapas de produção pelas quais o pedido passou, inclusive a atual;
+        // etapas que não geraram baixa são no-op no estorno
+        int indiceAtual = StatusPedido.indiceEtapaProducao(statusAtual);
+        for (int i = 0; i <= indiceAtual; i++) {
+            estoqueService.estornarPorEtapa(id, StatusPedido.ETAPAS_PRODUCAO.get(i), usuarioId);
+        }
+
+        pedido.setStatus(StatusPedido.CANCELADO);
+        pedido.setAtualizadoEm(LocalDateTime.now());
+        return repository.save(pedido);
+    }
+
     // LIMITAÇÃO CONHECIDA: este método aceita trocar o status diretamente, sem passar pelo
     // gatilho de baixa/estorno de estoque de avancarStatus/regredirStatus — é uma porta
     // lateral que ignora o estoque. Decisão pendente de alinhamento com o grupo.
