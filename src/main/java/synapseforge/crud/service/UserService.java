@@ -355,4 +355,14 @@ public class UserService {
 
         return repository.save(user);
     }
+
+    // =========================================================
+    // LISTAGEM DE CLIENTES PARA PEDIDOS
+    // =========================================================
+    public List<User> listarClientes() {
+        return repository.findAll()
+                .stream()
+                .filter(user -> user.getRole() == Role.CLIENTE)
+                .toList();
+    }
 }

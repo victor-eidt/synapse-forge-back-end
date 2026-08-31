@@ -7,7 +7,9 @@ import synapseforge.crud.DTO.Pedido.PedidoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
+import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.PedidoRepository;
+import synapseforge.crud.infrastructure.repository.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -27,6 +29,9 @@ public class PedidoService {
     private PedidoRepository repository;
 
     @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
     private org.springframework.data.mongodb.gridfs.GridFsTemplate gridFsTemplate;
 
 
@@ -39,6 +44,7 @@ public class PedidoService {
         Pedido pedido = new Pedido();
 
         pedido.setUsuarioId(usuarioId);
+        pedido.setClienteId(dto.getClienteId());
         pedido.setCliente(dto.getCliente());
         pedido.setProjeto(dto.getProjeto());
         pedido.setDescricao(dto.getDescricao());
@@ -50,12 +56,45 @@ public class PedidoService {
 
 
     // =========================================================
-    // CONVERSÃO ENTITY -> DTO
+    // VALIDAR CLIENTE
+    // =========================================================
+
+    private void validarCliente(Pedido pedido) {
+
+        if (pedido.getClienteId() == null ||
+                pedido.getClienteId().isBlank()) {
+
+            // Pedido sem cliente vinculado é permitido.
+            return;
+        }
+
+        User cliente = userRepository.findById(
+                pedido.getClienteId()
+        ).orElseThrow(() ->
+                new RuntimeException(
+                        "Cliente não encontrado"
+                )
+        );
+
+        if (cliente.getRole() != Role.CLIENTE) {
+            throw new RuntimeException(
+                    "O usuário selecionado não possui a role CLIENTE"
+            );
+        }
+
+        // Garante que o nome salvo no pedido corresponde ao usuário.
+        pedido.setCliente(cliente.getNome());
+    }
+
+
+    // =========================================================
+    // ENTITY -> DTO
     // =========================================================
 
     public PedidoResponseDTO toResponseDTO(Pedido pedido) {
 
-        String objeto3DFileId = pedido.getObjeto3DFileId();
+        String objeto3DFileId =
+                pedido.getObjeto3DFileId();
 
         List<String> imagensBase64 = null;
 
@@ -63,16 +102,19 @@ public class PedidoService {
 
             imagensBase64 = new ArrayList<>();
 
-            for (String id : pedido.getImagensReferenciaFileIds()) {
+            for (String id :
+                    pedido.getImagensReferenciaFileIds()) {
 
                 try {
 
-                    ObjectId oid = new ObjectId(id);
+                    ObjectId oid =
+                            new ObjectId(id);
 
                     com.mongodb.client.gridfs.model.GridFSFile gridFsFile =
                             gridFsTemplate.findOne(
                                     new Query(
-                                            Criteria.where("_id").is(oid)
+                                            Criteria.where("_id")
+                                                    .is(oid)
                                     )
                             );
 
@@ -82,27 +124,36 @@ public class PedidoService {
                     }
 
                     org.springframework.data.mongodb.gridfs.GridFsResource resource =
-                            gridFsTemplate.getResource(gridFsFile);
+                            gridFsTemplate.getResource(
+                                    gridFsFile
+                            );
 
-                    java.io.InputStream is = resource.getInputStream();
+                    java.io.InputStream is =
+                            resource.getInputStream();
 
-                    byte[] bytes = is.readAllBytes();
+                    byte[] bytes =
+                            is.readAllBytes();
 
-                    String contentType = "application/octet-stream";
+                    String contentType =
+                            "application/octet-stream";
 
                     if (gridFsFile.getMetadata() != null) {
 
-                        if (gridFsFile.getMetadata().getString("contentType") != null) {
+                        if (gridFsFile.getMetadata()
+                                .getString("contentType") != null) {
 
                             contentType =
-                                    gridFsFile.getMetadata().getString("contentType");
+                                    gridFsFile.getMetadata()
+                                            .getString("contentType");
 
                         } else if (
-                                gridFsFile.getMetadata().getString("_contentType") != null
+                                gridFsFile.getMetadata()
+                                        .getString("_contentType") != null
                         ) {
 
                             contentType =
-                                    gridFsFile.getMetadata().getString("_contentType");
+                                    gridFsFile.getMetadata()
+                                            .getString("_contentType");
                         }
                     }
 
@@ -112,7 +163,10 @@ public class PedidoService {
                                     .encodeToString(bytes);
 
                     imagensBase64.add(
-                            "data:" + contentType + ";base64," + b64
+                            "data:"
+                                    + contentType
+                                    + ";base64,"
+                                    + b64
                     );
 
                 } catch (Exception e) {
@@ -124,6 +178,7 @@ public class PedidoService {
 
         return new PedidoResponseDTO(
                 pedido.getId(),
+                pedido.getClienteId(),
                 pedido.getCliente(),
                 pedido.getProjeto(),
                 pedido.getDescricao(),
@@ -144,9 +199,19 @@ public class PedidoService {
 
     public Pedido criar(Pedido pedido) {
 
-        pedido.setStatus(StatusPedido.MODELAGEM);
-        pedido.setCriadoEm(LocalDateTime.now());
-        pedido.setAtualizadoEm(LocalDateTime.now());
+        validarCliente(pedido);
+
+        pedido.setStatus(
+                StatusPedido.MODELAGEM
+        );
+
+        pedido.setCriadoEm(
+                LocalDateTime.now()
+        );
+
+        pedido.setAtualizadoEm(
+                LocalDateTime.now()
+        );
 
         return repository.save(pedido);
     }
@@ -156,16 +221,22 @@ public class PedidoService {
     // LISTAR
     // =========================================================
     //
-    // CLIENTE -> somente seus próprios pedidos
+    // CLIENTE -> somente pedidos vinculados ao próprio ID
     // TECNICO -> todos
     // GERENTE -> todos
     // ADMIN -> todos
     //
 
-    public List<Pedido> listar(String usuarioId, Role role) {
+    public List<Pedido> listar(
+            String usuarioId,
+            Role role
+    ) {
 
         if (role == Role.CLIENTE) {
-            return repository.findByUsuarioId(usuarioId);
+
+            return repository.findByClienteId(
+                    usuarioId
+            );
         }
 
         return repository.findAll();
@@ -184,7 +255,7 @@ public class PedidoService {
 
         if (role == Role.CLIENTE) {
 
-            return repository.findByUsuarioIdAndStatus(
+            return repository.findByClienteIdAndStatus(
                     usuarioId,
                     status
             );
@@ -192,7 +263,9 @@ public class PedidoService {
 
         return repository.findAll()
                 .stream()
-                .filter(p -> p.getStatus() == status)
+                .filter(p ->
+                        p.getStatus() == status
+                )
                 .toList();
     }
 
@@ -201,8 +274,8 @@ public class PedidoService {
     // BUSCAR POR ID
     // =========================================================
     //
-    // CLIENTE -> somente se for dono
-    // FUNCIONÁRIO / GERENTE / ADMIN -> qualquer pedido
+    // CLIENTE -> somente se o pedido estiver vinculado a ele
+    // TECNICO / GERENTE / ADMIN -> qualquer pedido
     //
 
     public Optional<Pedido> buscarPorId(
@@ -215,7 +288,9 @@ public class PedidoService {
 
             return repository.findById(id)
                     .filter(p ->
-                            usuarioId.equals(p.getUsuarioId())
+                            usuarioId.equals(
+                                    p.getClienteId()
+                            )
                     );
         }
 
@@ -233,24 +308,37 @@ public class PedidoService {
             Role role
     ) {
 
-        Pedido pedido = buscarPedidoParaEdicao(
-                id,
-                usuarioId,
-                role
-        );
+        Pedido pedido =
+                buscarPedidoParaEdicao(
+                        id,
+                        usuarioId,
+                        role
+                );
 
-        StatusPedido statusAtual = pedido.getStatus();
+        StatusPedido statusAtual =
+                pedido.getStatus();
 
         if (statusAtual == null) {
-            throw new RuntimeException("Status do pedido inválido");
+
+            throw new RuntimeException(
+                    "Status do pedido inválido"
+            );
         }
 
-        StatusPedido[] valores = StatusPedido.values();
+        StatusPedido[] valores =
+                StatusPedido.values();
 
-        int indiceAtual = statusAtual.ordinal();
+        int indiceAtual =
+                statusAtual.ordinal();
 
-        if (indiceAtual >= valores.length - 1) {
-            throw new RuntimeException("Pedido já está finalizado");
+        if (
+                indiceAtual >=
+                        valores.length - 1
+        ) {
+
+            throw new RuntimeException(
+                    "Pedido já está finalizado"
+            );
         }
 
         pedido.setStatus(
@@ -275,28 +363,37 @@ public class PedidoService {
             Role role
     ) {
 
-        Pedido pedido = buscarPedidoParaEdicao(
-                id,
-                usuarioId,
-                role
-        );
+        Pedido pedido =
+                buscarPedidoParaEdicao(
+                        id,
+                        usuarioId,
+                        role
+                );
 
-        StatusPedido statusAtual = pedido.getStatus();
+        StatusPedido statusAtual =
+                pedido.getStatus();
 
         if (statusAtual == null) {
-            throw new RuntimeException("Status do pedido inválido");
+
+            throw new RuntimeException(
+                    "Status do pedido inválido"
+            );
         }
 
-        int indiceAtual = statusAtual.ordinal();
+        int indiceAtual =
+                statusAtual.ordinal();
 
         if (indiceAtual <= 0) {
+
             throw new RuntimeException(
                     "Pedido já está na primeira etapa"
             );
         }
 
         pedido.setStatus(
-                StatusPedido.values()[indiceAtual - 1]
+                StatusPedido.values()[
+                        indiceAtual - 1
+                        ]
         );
 
         pedido.setAtualizadoEm(
@@ -318,20 +415,41 @@ public class PedidoService {
             Pedido dados
     ) {
 
-        Pedido pedido = buscarPedidoParaEdicao(
-                id,
-                usuarioId,
-                role
+        Pedido pedido =
+                buscarPedidoParaEdicao(
+                        id,
+                        usuarioId,
+                        role
+                );
+
+        pedido.setClienteId(
+                dados.getClienteId()
         );
 
-        pedido.setCliente(dados.getCliente());
-        pedido.setProjeto(dados.getProjeto());
-        pedido.setDescricao(dados.getDescricao());
-        pedido.setPrazo(dados.getPrazo());
+        pedido.setCliente(
+                dados.getCliente()
+        );
+
+        pedido.setProjeto(
+                dados.getProjeto()
+        );
+
+        pedido.setDescricao(
+                dados.getDescricao()
+        );
+
+        pedido.setPrazo(
+                dados.getPrazo()
+        );
 
         if (dados.getStatus() != null) {
-            pedido.setStatus(dados.getStatus());
+
+            pedido.setStatus(
+                    dados.getStatus()
+            );
         }
+
+        validarCliente(pedido);
 
         pedido.setAtualizadoEm(
                 LocalDateTime.now()
@@ -356,11 +474,12 @@ public class PedidoService {
             List<String> imagensRemover
     ) {
 
-        Pedido pedido = buscarPedidoParaEdicao(
-                id,
-                usuarioId,
-                role
-        );
+        Pedido pedido =
+                buscarPedidoParaEdicao(
+                        id,
+                        usuarioId,
+                        role
+                );
 
         String objetoAnterior =
                 pedido.getObjeto3DFileId();
@@ -380,9 +499,15 @@ public class PedidoService {
                 );
 
         idsSolicitados.retainAll(
-                new HashSet<>(imagensAtuais)
+                new HashSet<>(
+                        imagensAtuais
+                )
         );
 
+
+        pedido.setClienteId(
+                dados.getClienteId()
+        );
 
         pedido.setCliente(
                 dados.getCliente()
@@ -401,27 +526,40 @@ public class PedidoService {
         );
 
         if (dados.getStatus() != null) {
+
             pedido.setStatus(
                     dados.getStatus()
             );
         }
 
+        validarCliente(pedido);
 
+
+        // =====================================================
         // OBJETO 3D
+        // =====================================================
 
-        if (novoObjeto3DFileId != null) {
+        if (
+                novoObjeto3DFileId != null
+        ) {
 
             pedido.setObjeto3DFileId(
                     novoObjeto3DFileId
             );
 
-        } else if (removerObjeto3D) {
+        } else if (
+                removerObjeto3D
+        ) {
 
-            pedido.setObjeto3DFileId(null);
+            pedido.setObjeto3DFileId(
+                    null
+            );
         }
 
 
+        // =====================================================
         // IMAGENS
+        // =====================================================
 
         imagensAtuais.removeAll(
                 idsSolicitados
@@ -447,10 +585,15 @@ public class PedidoService {
                 repository.save(pedido);
 
 
-        // Remove arquivos antigos
+        // =====================================================
+        // REMOVE ARQUIVOS ANTIGOS
+        // =====================================================
 
         if (
-                (novoObjeto3DFileId != null || removerObjeto3D)
+                (
+                        novoObjeto3DFileId != null
+                                || removerObjeto3D
+                )
                         && objetoAnterior != null
         ) {
 
@@ -477,11 +620,12 @@ public class PedidoService {
             Role role
     ) {
 
-        Pedido pedido = buscarPedidoParaEdicao(
-                id,
-                usuarioId,
-                role
-        );
+        Pedido pedido =
+                buscarPedidoParaEdicao(
+                        id,
+                        usuarioId,
+                        role
+                );
 
         repository.deleteById(id);
 
@@ -505,12 +649,6 @@ public class PedidoService {
     // =========================================================
     // VERIFICAÇÃO DE PERMISSÃO PARA ALTERAÇÃO
     // =========================================================
-    //
-    // CLIENTE -> não pode alterar
-    // TECNICO -> pode
-    // GERENTE -> pode
-    // ADMIN -> pode
-    //
 
     private Pedido buscarPedidoParaEdicao(
             String id,
@@ -527,9 +665,10 @@ public class PedidoService {
 
         return repository.findById(id)
                 .orElseThrow(
-                        () -> new RuntimeException(
-                                "Pedido não encontrado"
-                        )
+                        () ->
+                                new RuntimeException(
+                                        "Pedido não encontrado"
+                                )
                 );
     }
 
@@ -538,19 +677,24 @@ public class PedidoService {
     // DELETAR ARQUIVO DO GRIDFS
     // =========================================================
 
-    private void deletarArquivoGridFs(String id) {
+    private void deletarArquivoGridFs(
+            String id
+    ) {
 
         if (
                 id == null
                         || !ObjectId.isValid(id)
         ) {
+
             return;
         }
 
         gridFsTemplate.delete(
                 new Query(
                         Criteria.where("_id")
-                                .is(new ObjectId(id))
+                                .is(
+                                        new ObjectId(id)
+                                )
                 )
         );
     }
