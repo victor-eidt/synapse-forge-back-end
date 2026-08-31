@@ -30,6 +30,18 @@ public class PedidoService {
         pedido.setCliente(dto.getCliente());
         pedido.setProjeto(dto.getProjeto());
         pedido.setDescricao(dto.getDescricao());
+        pedido.setMaterialId(dto.getMaterialId());
+        pedido.setVolumeCm3(dto.getVolumeCm3());
+        pedido.setTempoImpressaoHoras(dto.getTempoImpressaoHoras());
+        pedido.setTempoMaoDeObraHoras(dto.getTempoMaoDeObraHoras());
+        pedido.setCustoMaquinaHora(dto.getCustoMaquinaHora());
+        pedido.setCustoMaoDeObraHora(dto.getCustoMaoDeObraHora());
+        pedido.setMargemLucro(dto.getMargemLucro());
+        pedido.setCustoMaterial(dto.getCustoMaterial());
+        pedido.setCustoMaquina(dto.getCustoMaquina());
+        pedido.setCustoMaoDeObra(dto.getCustoMaoDeObra());
+        pedido.setCustoTotal(dto.getCustoTotal());
+        pedido.setPrecoFinal(dto.getPrecoFinal());
         pedido.setPrazo(dto.getPrazo());
         pedido.setStatus(dto.getStatus());
         return pedido;
@@ -80,6 +92,19 @@ public class PedidoService {
                 pedido.getCliente(),
                 pedido.getProjeto(),
                 pedido.getDescricao(),
+                pedido.getOrcamentoId(),
+                pedido.getMaterialId(),
+                pedido.getVolumeCm3(),
+                pedido.getTempoImpressaoHoras(),
+                pedido.getTempoMaoDeObraHoras(),
+                pedido.getCustoMaquinaHora(),
+                pedido.getCustoMaoDeObraHora(),
+                pedido.getMargemLucro(),
+                pedido.getCustoMaterial(),
+                pedido.getCustoMaquina(),
+                pedido.getCustoMaoDeObra(),
+                pedido.getCustoTotal(),
+                pedido.getPrecoFinal(),
                 pedido.getStatus(),
                 pedido.getPrazo(),
                 pedido.getCriadoEm(),
@@ -160,6 +185,7 @@ public class PedidoService {
         pedido.setCliente(dados.getCliente());
         pedido.setProjeto(dados.getProjeto());
         pedido.setDescricao(dados.getDescricao());
+        copiarDadosOrcamento(pedido, dados);
         pedido.setPrazo(dados.getPrazo());
         if (dados.getStatus() != null) {
             pedido.setStatus(dados.getStatus());
@@ -195,6 +221,7 @@ public class PedidoService {
         pedido.setCliente(dados.getCliente());
         pedido.setProjeto(dados.getProjeto());
         pedido.setDescricao(dados.getDescricao());
+        copiarDadosOrcamento(pedido, dados);
         pedido.setPrazo(dados.getPrazo());
         if (dados.getStatus() != null) {
             pedido.setStatus(dados.getStatus());
@@ -237,5 +264,20 @@ public class PedidoService {
     private void deletarArquivoGridFs(String id) {
         if (id == null || !ObjectId.isValid(id)) return;
         gridFsTemplate.delete(new Query(Criteria.where("_id").is(new ObjectId(id))));
+    }
+
+    private void copiarDadosOrcamento(Pedido destino, Pedido origem) {
+        destino.setMaterialId(origem.getMaterialId());
+        destino.setVolumeCm3(origem.getVolumeCm3());
+        destino.setTempoImpressaoHoras(origem.getTempoImpressaoHoras());
+        destino.setTempoMaoDeObraHoras(origem.getTempoMaoDeObraHoras());
+        destino.setCustoMaquinaHora(origem.getCustoMaquinaHora());
+        destino.setCustoMaoDeObraHora(origem.getCustoMaoDeObraHora());
+        destino.setMargemLucro(origem.getMargemLucro());
+        destino.setCustoMaterial(origem.getCustoMaterial());
+        destino.setCustoMaquina(origem.getCustoMaquina());
+        destino.setCustoMaoDeObra(origem.getCustoMaoDeObra());
+        destino.setCustoTotal(origem.getCustoTotal());
+        destino.setPrecoFinal(origem.getPrecoFinal());
     }
 }
