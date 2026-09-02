@@ -13,6 +13,7 @@ import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import synapseforge.crud.DTO.Pedido.PedidoRequestDTO;
 import synapseforge.crud.infrastructure.entity.Pedido;
+import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.infrastructure.repository.PedidoRepository;
 
@@ -72,7 +73,7 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        Pedido result = service.avancarStatus("p-1", "user-1");
+        Pedido result = service.avancarStatus("p-1", "user-1", Role.ADMIN);
 
         assertEquals(StatusPedido.IMPRESSAO, result.getStatus());
     }
@@ -87,7 +88,7 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        Pedido result = service.regredirStatus("p-1", "user-1");
+        Pedido result = service.regredirStatus("p-1", "user-1", Role.ADMIN);
 
         assertEquals(StatusPedido.MODELAGEM, result.getStatus());
     }
@@ -113,7 +114,7 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        Pedido result = service.atualizar("p-1", "user-1", dados);
+        Pedido result = service.atualizar("p-1", "user-1", Role.ADMIN, dados);
 
         assertEquals("Cliente B", result.getCliente());
         assertEquals(StatusPedido.IMPRESSAO, result.getStatus());
@@ -131,7 +132,7 @@ class PedidoServiceTest {
 
         ReflectionTestUtils.setField(service, "gridFsTemplate", gridFsTemplate);
 
-        service.deletar("p-1", "user-1");
+        service.deletar("p-1", "user-1", Role.ADMIN);
 
         verify(repository).deleteById("p-1");
     }
