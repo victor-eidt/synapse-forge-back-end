@@ -18,6 +18,7 @@ import synapseforge.crud.service.PdfService;
 
 import java.io.IOException;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -54,6 +55,18 @@ public class PedidoController {
             @RequestParam("projeto") String projeto,
             @RequestParam(value = "descricao", required = false) String descricao,
             @RequestParam("prazo") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate prazo,
+            @RequestParam(value = "materialId", required = false) String materialId,
+            @RequestParam(value = "volumeCm3", required = false) Double volumeCm3,
+            @RequestParam(value = "tempoImpressaoHoras", required = false) Double tempoImpressaoHoras,
+            @RequestParam(value = "tempoMaoDeObraHoras", required = false) Double tempoMaoDeObraHoras,
+            @RequestParam(value = "custoMaquinaHora", required = false) BigDecimal custoMaquinaHora,
+            @RequestParam(value = "custoMaoDeObraHora", required = false) BigDecimal custoMaoDeObraHora,
+            @RequestParam(value = "margemLucro", required = false) BigDecimal margemLucro,
+            @RequestParam(value = "custoMaterial", required = false) BigDecimal custoMaterial,
+            @RequestParam(value = "custoMaquina", required = false) BigDecimal custoMaquina,
+            @RequestParam(value = "custoMaoDeObra", required = false) BigDecimal custoMaoDeObra,
+            @RequestParam(value = "custoTotal", required = false) BigDecimal custoTotal,
+            @RequestParam(value = "precoFinal", required = false) BigDecimal precoFinal,
             @RequestParam(value = "objeto3D", required = false) MultipartFile objeto3D,
             @RequestParam(value = "imagensReferencia", required = false) MultipartFile[] imagensReferencia,
             Authentication auth
@@ -65,6 +78,7 @@ public class PedidoController {
         dto.setProjeto(projeto);
         dto.setDescricao(descricao);
         dto.setPrazo(prazo);
+        preencherDadosOrcamento(dto, materialId, volumeCm3, tempoImpressaoHoras, tempoMaoDeObraHoras, custoMaquinaHora, custoMaoDeObraHora, margemLucro, custoMaterial, custoMaquina, custoMaoDeObra, custoTotal, precoFinal);
 
         Pedido pedido = service.toEntity(dto, usuarioId);
 
@@ -135,6 +149,18 @@ public class PedidoController {
             @RequestParam("projeto") String projeto,
             @RequestParam(value = "descricao", required = false) String descricao,
             @RequestParam("prazo") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate prazo,
+            @RequestParam(value = "materialId", required = false) String materialId,
+            @RequestParam(value = "volumeCm3", required = false) Double volumeCm3,
+            @RequestParam(value = "tempoImpressaoHoras", required = false) Double tempoImpressaoHoras,
+            @RequestParam(value = "tempoMaoDeObraHoras", required = false) Double tempoMaoDeObraHoras,
+            @RequestParam(value = "custoMaquinaHora", required = false) BigDecimal custoMaquinaHora,
+            @RequestParam(value = "custoMaoDeObraHora", required = false) BigDecimal custoMaoDeObraHora,
+            @RequestParam(value = "margemLucro", required = false) BigDecimal margemLucro,
+            @RequestParam(value = "custoMaterial", required = false) BigDecimal custoMaterial,
+            @RequestParam(value = "custoMaquina", required = false) BigDecimal custoMaquina,
+            @RequestParam(value = "custoMaoDeObra", required = false) BigDecimal custoMaoDeObra,
+            @RequestParam(value = "custoTotal", required = false) BigDecimal custoTotal,
+            @RequestParam(value = "precoFinal", required = false) BigDecimal precoFinal,
             @RequestParam(value = "status", required = false) StatusPedido status,
             @RequestParam(value = "objeto3D", required = false) MultipartFile objeto3D,
             @RequestParam(value = "removerObjeto3D", defaultValue = "false") boolean removerObjeto3D,
@@ -152,6 +178,7 @@ public class PedidoController {
         dto.setDescricao(descricao);
         dto.setPrazo(prazo);
         dto.setStatus(status);
+        preencherDadosOrcamento(dto, materialId, volumeCm3, tempoImpressaoHoras, tempoMaoDeObraHoras, custoMaquinaHora, custoMaoDeObraHora, margemLucro, custoMaterial, custoMaquina, custoMaoDeObra, custoTotal, precoFinal);
 
         String novoObjetoId = null;
         if (objeto3D != null && !objeto3D.isEmpty()) {
@@ -248,6 +275,23 @@ public class PedidoController {
                 .body(pdf);
     }
 
-}
+    private void preencherDadosOrcamento(PedidoRequestDTO dto, String materialId, Double volumeCm3,
+            Double tempoImpressaoHoras, Double tempoMaoDeObraHoras, BigDecimal custoMaquinaHora,
+            BigDecimal custoMaoDeObraHora, BigDecimal margemLucro, BigDecimal custoMaterial,
+            BigDecimal custoMaquina, BigDecimal custoMaoDeObra, BigDecimal custoTotal, BigDecimal precoFinal) {
+        dto.setMaterialId(materialId);
+        dto.setVolumeCm3(volumeCm3);
+        dto.setTempoImpressaoHoras(tempoImpressaoHoras);
+        dto.setTempoMaoDeObraHoras(tempoMaoDeObraHoras);
+        dto.setCustoMaquinaHora(custoMaquinaHora);
+        dto.setCustoMaoDeObraHora(custoMaoDeObraHora);
+        dto.setMargemLucro(margemLucro);
+        dto.setCustoMaterial(custoMaterial);
+        dto.setCustoMaquina(custoMaquina);
+        dto.setCustoMaoDeObra(custoMaoDeObra);
+        dto.setCustoTotal(custoTotal);
+        dto.setPrecoFinal(precoFinal);
+    }
 
+}
 

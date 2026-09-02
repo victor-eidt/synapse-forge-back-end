@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Getter
@@ -27,6 +28,21 @@ public class Pedido {
     private String cliente;
     private String projeto;
     private String descricao;
+
+    // Dados de custo do orçamento que originou este pedido, quando houver.
+    private String orcamentoId;
+    private String materialId;
+    private Double volumeCm3;
+    private Double tempoImpressaoHoras;
+    private Double tempoMaoDeObraHoras;
+    private BigDecimal custoMaquinaHora;
+    private BigDecimal custoMaoDeObraHora;
+    private BigDecimal margemLucro;
+    private BigDecimal custoMaterial;
+    private BigDecimal custoMaquina;
+    private BigDecimal custoMaoDeObra;
+    private BigDecimal custoTotal;
+    private BigDecimal precoFinal;
 
     private StatusPedido status;
     private LocalDate prazo;
