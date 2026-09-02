@@ -8,11 +8,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
 import synapseforge.crud.DTO.Orcamento.CalcularOrcamentoRequestDTO;
 import synapseforge.crud.DTO.Orcamento.OrcamentoResponseDTO;
 import synapseforge.crud.service.OrcamentoService;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
@@ -24,10 +24,17 @@ class OrcamentoControllerTest {
     @InjectMocks
     private OrcamentoController controller;
 
+    private Authentication auth() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn("user-1");
+        return auth;
+    }
+
     @Test
     void calcularDeveRetornarPreview() {
         CalcularOrcamentoRequestDTO dto = new CalcularOrcamentoRequestDTO();
-        OrcamentoResponseDTO response = new OrcamentoResponseDTO("o-1", "m-1", "PLA", 50.0, 2.0, 1.5, BigDecimal.valueOf(30), BigDecimal.valueOf(20), BigDecimal.valueOf(30), BigDecimal.valueOf(3.0), BigDecimal.valueOf(60.0), BigDecimal.valueOf(30.0), BigDecimal.valueOf(93.0), BigDecimal.valueOf(120.9), null);
+        OrcamentoResponseDTO response = mock(OrcamentoResponseDTO.class);
+        when(response.getNomeMaterial()).thenReturn("PLA");
         when(service.calcular(dto)).thenReturn(response);
 
         assertEquals("PLA", controller.calcular(dto).getNomeMaterial());
@@ -35,26 +42,31 @@ class OrcamentoControllerTest {
 
     @Test
     void salvarDeveRetornarOrcamentoPersistido() {
+        Authentication auth = auth();
         CalcularOrcamentoRequestDTO dto = new CalcularOrcamentoRequestDTO();
-        OrcamentoResponseDTO response = new OrcamentoResponseDTO("o-1", "m-1", "PLA", 50.0, 2.0, 1.5, BigDecimal.valueOf(30), BigDecimal.valueOf(20), BigDecimal.valueOf(30), BigDecimal.valueOf(3.0), BigDecimal.valueOf(60.0), BigDecimal.valueOf(30.0), BigDecimal.valueOf(93.0), BigDecimal.valueOf(120.9), null);
-        when(service.salvar(dto)).thenReturn(response);
+        OrcamentoResponseDTO response = mock(OrcamentoResponseDTO.class);
+        when(response.getId()).thenReturn("o-1");
+        when(service.salvar(dto, "user-1")).thenReturn(response);
 
-        assertEquals("o-1", controller.salvar(dto).getId());
+        assertEquals("o-1", controller.salvar(dto, auth).getId());
     }
 
     @Test
     void listarDeveRetornarLista() {
-        OrcamentoResponseDTO response = new OrcamentoResponseDTO("o-1", "m-1", "PLA", 50.0, 2.0, 1.5, BigDecimal.valueOf(30), BigDecimal.valueOf(20), BigDecimal.valueOf(30), BigDecimal.valueOf(3.0), BigDecimal.valueOf(60.0), BigDecimal.valueOf(30.0), BigDecimal.valueOf(93.0), BigDecimal.valueOf(120.9), null);
-        when(service.listar()).thenReturn(List.of(response));
+        Authentication auth = auth();
+        OrcamentoResponseDTO response = mock(OrcamentoResponseDTO.class);
+        when(service.listar("user-1")).thenReturn(List.of(response));
 
-        assertEquals(1, controller.listar().size());
+        assertEquals(1, controller.listar(auth).size());
     }
 
     @Test
     void buscarPorIdDeveRetornarOrcamento() {
-        OrcamentoResponseDTO response = new OrcamentoResponseDTO("o-1", "m-1", "PLA", 50.0, 2.0, 1.5, BigDecimal.valueOf(30), BigDecimal.valueOf(20), BigDecimal.valueOf(30), BigDecimal.valueOf(3.0), BigDecimal.valueOf(60.0), BigDecimal.valueOf(30.0), BigDecimal.valueOf(93.0), BigDecimal.valueOf(120.9), null);
-        when(service.buscarPorId("o-1")).thenReturn(response);
+        Authentication auth = auth();
+        OrcamentoResponseDTO response = mock(OrcamentoResponseDTO.class);
+        when(response.getNomeMaterial()).thenReturn("PLA");
+        when(service.buscarPorId("o-1", "user-1")).thenReturn(response);
 
-        assertEquals("PLA", controller.buscarPorId("o-1").getNomeMaterial());
+        assertEquals("PLA", controller.buscarPorId("o-1", auth).getNomeMaterial());
     }
 }

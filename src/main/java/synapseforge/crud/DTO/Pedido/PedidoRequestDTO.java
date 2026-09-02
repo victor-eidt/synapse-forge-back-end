@@ -13,6 +13,10 @@ import java.math.BigDecimal;
 @Setter
 public class PedidoRequestDTO {
 
+    // ID do cliente existente no sistema.
+    // Pode ficar null caso o pedido não seja vinculado a nenhum cliente.
+    private String clienteId;
+
     @NotBlank
     private String cliente;
 
