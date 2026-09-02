@@ -5,6 +5,8 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import synapseforge.crud.infrastructure.entity.StatusOrcamento;
 
 @Getter
 @AllArgsConstructor
@@ -13,6 +15,12 @@ public class OrcamentoResponseDTO {
     private String id;
     private String materialId;
     private String nomeMaterial;
+    private String cliente;
+    private String projeto;
+    private String descricao;
+    private LocalDate prazo;
+    private StatusOrcamento status;
+    private String pedidoId;
 
     // Inputs
     private Double volumeCm3;
