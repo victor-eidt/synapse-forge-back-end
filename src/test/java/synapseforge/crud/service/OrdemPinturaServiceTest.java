@@ -72,7 +72,10 @@ class OrdemPinturaServiceTest {
         when(repository.findByUsuarioIdOrderByCriadoEmDesc("user-1")).thenReturn(List.of(ordem));
         when(pedidoRepository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(corRepository.findById("c-1")).thenReturn(Optional.of(cor));
-        when(pedidoService.toResponseDTO(pedido)).thenReturn(new synapseforge.crud.DTO.Pedido.PedidoResponseDTO("p-1", "Cliente A", "Projeto X", "Desc", synapseforge.crud.infrastructure.entity.StatusPedido.MODELAGEM, LocalDate.now(), LocalDateTime.now(), LocalDateTime.now(), null, null, null));
+        synapseforge.crud.DTO.Pedido.PedidoResponseDTO pedidoResponse =
+                mock(synapseforge.crud.DTO.Pedido.PedidoResponseDTO.class);
+        when(pedidoResponse.getImagensReferenciaFileIds()).thenReturn(null);
+        when(pedidoService.toResponseDTO(pedido)).thenReturn(pedidoResponse);
 
         List<OrdemPinturaResponseDTO> result = service.listar("user-1");
 
@@ -99,7 +102,10 @@ class OrdemPinturaServiceTest {
 
         when(pedidoRepository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(corRepository.findById("c-1")).thenReturn(Optional.of(cor));
-        when(pedidoService.toResponseDTO(pedido)).thenReturn(new synapseforge.crud.DTO.Pedido.PedidoResponseDTO("p-1", "Cliente A", "Projeto X", "Desc", synapseforge.crud.infrastructure.entity.StatusPedido.MODELAGEM, LocalDate.now(), LocalDateTime.now(), LocalDateTime.now(), null, List.of(), List.of()));
+        synapseforge.crud.DTO.Pedido.PedidoResponseDTO pedidoResponse =
+                mock(synapseforge.crud.DTO.Pedido.PedidoResponseDTO.class);
+        when(pedidoResponse.getImagensReferenciaFileIds()).thenReturn(List.of());
+        when(pedidoService.toResponseDTO(pedido)).thenReturn(pedidoResponse);
         when(repository.save(any(OrdemPintura.class))).thenAnswer(invocation -> {
             OrdemPintura ordem = invocation.getArgument(0);
             ordem.setId("ord-1");
@@ -158,7 +164,10 @@ class OrdemPinturaServiceTest {
         when(repository.findById("ord-1")).thenReturn(Optional.of(ordem));
         when(pedidoRepository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(corRepository.findById("c-1")).thenReturn(Optional.of(cor));
-        when(pedidoService.toResponseDTO(pedido)).thenReturn(new synapseforge.crud.DTO.Pedido.PedidoResponseDTO("p-1", "Cliente A", "Projeto X", "Desc", synapseforge.crud.infrastructure.entity.StatusPedido.MODELAGEM, LocalDate.now(), LocalDateTime.now(), LocalDateTime.now(), null, List.of(), List.of()));
+        synapseforge.crud.DTO.Pedido.PedidoResponseDTO pedidoResponse =
+                mock(synapseforge.crud.DTO.Pedido.PedidoResponseDTO.class);
+        when(pedidoResponse.getImagensReferenciaFileIds()).thenReturn(List.of());
+        when(pedidoService.toResponseDTO(pedido)).thenReturn(pedidoResponse);
         when(repository.save(ordem)).thenReturn(ordem);
 
         OrdemPinturaResponseDTO result = service.atualizar("ord-1", dto, "user-1");
