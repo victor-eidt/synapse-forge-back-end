@@ -68,6 +68,13 @@ public class DataInitializer implements CommandLineRunner {
                         "Funcionario Teste",
                         "funcionario@teste.com",
                         Role.TECNICO
+                ),
+
+                // GERENTE
+                createTestUser(
+                        "Gerente Teste",
+                        "gerente@teste.com",
+                        Role.GERENTE
                 )
         );
 
