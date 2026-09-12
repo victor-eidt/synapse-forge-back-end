@@ -9,6 +9,7 @@ import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -19,14 +20,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserService {
 
+
     private final UserRepository repository;
     private final BCryptPasswordEncoder encoder;
     private final EmailService emailService;
 
 
-    // =========================================================
-    // DTO -> ENTITY
-    // =========================================================
+// =========================================================
+// DTO -> ENTITY
+// =========================================================
 
     public User toEntity(UserRequestDTO dto) {
 
@@ -43,9 +45,9 @@ public class UserService {
     }
 
 
-    // =========================================================
-    // ENTITY -> DTO
-    // =========================================================
+// =========================================================
+// ENTITY -> DTO
+// =========================================================
 
     public UserResponseDTO toResponseDTO(User user) {
 
@@ -57,14 +59,15 @@ public class UserService {
                 user.getTelefone(),
                 user.getRole() != null
                         ? user.getRole().name()
-                        : null
+                        : null,
+                user.getEquipeId()
         );
     }
 
 
-    // =========================================================
-    // CRIAR
-    // =========================================================
+// =========================================================
+// CRIAR
+// =========================================================
 
     public User criar(User user) {
 
@@ -86,9 +89,9 @@ public class UserService {
     }
 
 
-    // =========================================================
-    // LISTAR
-    // =========================================================
+// =========================================================
+// LISTAR
+// =========================================================
 
     public List<User> listar() {
 
@@ -96,9 +99,9 @@ public class UserService {
     }
 
 
-    // =========================================================
-    // BUSCAR POR ID
-    // =========================================================
+// =========================================================
+// BUSCAR POR ID
+// =========================================================
 
     public Optional<User> buscarPorId(String id) {
 
@@ -106,9 +109,9 @@ public class UserService {
     }
 
 
-    // =========================================================
-    // ATUALIZAR
-    // =========================================================
+// =========================================================
+// ATUALIZAR
+// =========================================================
 
     public User atualizar(
             String id,
@@ -154,9 +157,9 @@ public class UserService {
     }
 
 
-    // =========================================================
-    // DELETAR
-    // =========================================================
+// =========================================================
+// DELETAR
+// =========================================================
 
     public void deletar(String id) {
 
@@ -171,9 +174,9 @@ public class UserService {
     }
 
 
-    // =========================================================
-    // CRIAR VÁRIOS
-    // =========================================================
+// =========================================================
+// CRIAR VÁRIOS
+// =========================================================
 
     public List<User> criarVarios(
             List<User> users
@@ -196,9 +199,9 @@ public class UserService {
     }
 
 
-    // =========================================================
-    // BUSCAR POR NOME
-    // =========================================================
+// =========================================================
+// BUSCAR POR NOME
+// =========================================================
 
     public List<User> buscarPorNome(
             String nome
@@ -220,9 +223,9 @@ public class UserService {
     }
 
 
-    // =========================================================
-    // SOLICITAR MUDANÇA DE EMAIL
-    // =========================================================
+// =========================================================
+// SOLICITAR MUDANÇA DE EMAIL
+// =========================================================
 
     public Map<String, String> solicitarMudancaEmail(
             String id,
@@ -283,9 +286,9 @@ public class UserService {
     }
 
 
-    // =========================================================
-    // CONFIRMAR MUDANÇA DE EMAIL
-    // =========================================================
+// =========================================================
+// CONFIRMAR MUDANÇA DE EMAIL
+// =========================================================
 
     public void confirmarMudancaEmail(
             String token
@@ -326,9 +329,10 @@ public class UserService {
         repository.save(user);
     }
 
-    // =========================================================
-    // ATUALIZAR DADOS DO PERFIL
-    // =========================================================
+
+// =========================================================
+// ATUALIZAR DADOS DO PERFIL
+// =========================================================
 
     public User atualizarProprioPerfil(
             String id,
@@ -356,13 +360,61 @@ public class UserService {
         return repository.save(user);
     }
 
-    // =========================================================
-    // LISTAGEM DE CLIENTES PARA PEDIDOS
-    // =========================================================
+
+// =========================================================
+// LISTAGEM DE CLIENTES PARA PEDIDOS
+// =========================================================
+
     public List<User> listarClientes() {
+
         return repository.findAll()
                 .stream()
                 .filter(user -> user.getRole() == Role.CLIENTE)
                 .toList();
     }
+
+
+// =========================================================
+// VÍNCULO COM EQUIPE
+// =========================================================
+
+    public User vincularEquipe(
+            String usuarioId,
+            String equipeId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        user.setEquipeId(equipeId);
+
+        return repository.save(user);
+    }
+
+
+    public User desvincularEquipe(
+            String usuarioId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        user.setEquipeId(null);
+
+        return repository.save(user);
+    }
+
+    public List<User> listarClientesDisponiveisParaEquipe() {
+        return repository.findByRoleAndEquipeIdIsNull(Role.CLIENTE);
+    }
+
+
 }
