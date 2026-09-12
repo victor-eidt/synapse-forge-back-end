@@ -13,5 +13,6 @@ public class UserResponseDTO {
     private String cpf;
     private String telefone;
     private String role;
+    private String equipeId;
 
 }

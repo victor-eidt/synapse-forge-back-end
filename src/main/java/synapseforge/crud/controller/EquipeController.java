@@ -13,12 +13,17 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import synapseforge.crud.DTO.Equipe.EquipeResponseDTO;
+import synapseforge.crud.infrastructure.entity.ConviteEquipe;
 import synapseforge.crud.infrastructure.entity.Equipe;
+import synapseforge.crud.infrastructure.entity.User;
+import synapseforge.crud.service.ConviteEquipeService;
 import synapseforge.crud.service.EquipeService;
+import synapseforge.crud.service.UserService;
 
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 
 import java.io.IOException;
+import java.util.List;
 
 @RestController
 @RequestMapping("/equipes")
@@ -26,6 +31,12 @@ public class EquipeController {
 
     @Autowired
     private EquipeService service;
+
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private ConviteEquipeService conviteEquipeService;
 
     @Autowired
     private GridFsTemplate gridFsTemplate;
@@ -186,6 +197,57 @@ public class EquipeController {
         return service.toResponseDTO(
                 equipe
         );
+    }
+
+
+    // =========================================================
+    // BUSCAR CLIENTES DISPONÍVEIS PARA CONVITE
+    // =========================================================
+
+    @PreAuthorize(
+            "hasAnyRole('GERENTE', 'ADMIN')"
+    )
+    @GetMapping("/minha/clientes-disponiveis")
+    public List<synapseforge.crud.DTO.User.UserResponseDTO> listarClientesDisponiveis(
+            Authentication auth
+    ) {
+
+        List<User> clientes =
+                userService.listarClientesDisponiveisParaEquipe();
+
+        return clientes.stream()
+                .map(userService::toResponseDTO)
+                .toList();
+    }
+
+
+    // =========================================================
+    // CRIAR CONVITE PARA ENTRAR NA EQUIPE
+    // =========================================================
+
+    @PreAuthorize(
+            "hasAnyRole('GERENTE', 'ADMIN')"
+    )
+    @PostMapping("/{equipeId}/convites/{usuarioId}")
+    public ConviteEquipe criarConvite(
+            @PathVariable String equipeId,
+            @PathVariable String usuarioId,
+            Authentication auth
+    ) {
+
+        String gerenteId =
+                (String) auth.getPrincipal();
+
+
+        ConviteEquipe convite =
+                conviteEquipeService.criarConvite(
+                        equipeId,
+                        gerenteId,
+                        usuarioId
+                );
+
+
+        return convite;
     }
 
 
@@ -547,3 +609,4 @@ public class EquipeController {
         );
     }
 }
+
