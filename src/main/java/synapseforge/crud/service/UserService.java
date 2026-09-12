@@ -3,12 +3,12 @@ package synapseforge.crud.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.UserRepository;
-
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -20,15 +20,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserService {
 
-
     private final UserRepository repository;
     private final BCryptPasswordEncoder encoder;
     private final EmailService emailService;
 
 
-// =========================================================
-// DTO -> ENTITY
-// =========================================================
+    // =========================================================
+    // DTO -> ENTITY
+    // =========================================================
 
     public User toEntity(UserRequestDTO dto) {
 
@@ -45,9 +44,9 @@ public class UserService {
     }
 
 
-// =========================================================
-// ENTITY -> DTO
-// =========================================================
+    // =========================================================
+    // ENTITY -> DTO
+    // =========================================================
 
     public UserResponseDTO toResponseDTO(User user) {
 
@@ -65,9 +64,9 @@ public class UserService {
     }
 
 
-// =========================================================
-// CRIAR
-// =========================================================
+    // =========================================================
+    // CRIAR
+    // =========================================================
 
     public User criar(User user) {
 
@@ -89,9 +88,9 @@ public class UserService {
     }
 
 
-// =========================================================
-// LISTAR
-// =========================================================
+    // =========================================================
+    // LISTAR
+    // =========================================================
 
     public List<User> listar() {
 
@@ -99,9 +98,9 @@ public class UserService {
     }
 
 
-// =========================================================
-// BUSCAR POR ID
-// =========================================================
+    // =========================================================
+    // BUSCAR POR ID
+    // =========================================================
 
     public Optional<User> buscarPorId(String id) {
 
@@ -109,9 +108,9 @@ public class UserService {
     }
 
 
-// =========================================================
-// ATUALIZAR
-// =========================================================
+    // =========================================================
+    // ATUALIZAR
+    // =========================================================
 
     public User atualizar(
             String id,
@@ -124,7 +123,6 @@ public class UserService {
                                 "Usuário não encontrado"
                         )
                 );
-
 
         user.setNome(dto.getNome());
         user.setEmail(dto.getEmail());
@@ -152,14 +150,17 @@ public class UserService {
             );
         }
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
 
         return repository.save(user);
     }
 
 
-// =========================================================
-// DELETAR
-// =========================================================
+    // =========================================================
+    // DELETAR
+    // =========================================================
 
     public void deletar(String id) {
 
@@ -174,9 +175,9 @@ public class UserService {
     }
 
 
-// =========================================================
-// CRIAR VÁRIOS
-// =========================================================
+    // =========================================================
+    // CRIAR VÁRIOS
+    // =========================================================
 
     public List<User> criarVarios(
             List<User> users
@@ -199,9 +200,9 @@ public class UserService {
     }
 
 
-// =========================================================
-// BUSCAR POR NOME
-// =========================================================
+    // =========================================================
+    // BUSCAR POR NOME
+    // =========================================================
 
     public List<User> buscarPorNome(
             String nome
@@ -223,9 +224,9 @@ public class UserService {
     }
 
 
-// =========================================================
-// SOLICITAR MUDANÇA DE EMAIL
-// =========================================================
+    // =========================================================
+    // SOLICITAR MUDANÇA DE EMAIL
+    // =========================================================
 
     public Map<String, String> solicitarMudancaEmail(
             String id,
@@ -286,9 +287,9 @@ public class UserService {
     }
 
 
-// =========================================================
-// CONFIRMAR MUDANÇA DE EMAIL
-// =========================================================
+    // =========================================================
+    // CONFIRMAR MUDANÇA DE EMAIL
+    // =========================================================
 
     public void confirmarMudancaEmail(
             String token
@@ -325,14 +326,18 @@ public class UserService {
 
         user.setEmailMudancaTokenExpira(null);
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
 
         repository.save(user);
     }
 
 
-// =========================================================
-// ATUALIZAR DADOS DO PERFIL
-// =========================================================
+    // =========================================================
+    // ATUALIZAR DADOS DO PERFIL
+    // =========================================================
 
     public User atualizarProprioPerfil(
             String id,
@@ -351,32 +356,42 @@ public class UserService {
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
 
-        if (dto.getSenha() != null && !dto.getSenha().isBlank()) {
+        if (
+                dto.getSenha() != null
+                        && !dto.getSenha().isBlank()
+        ) {
+
             user.setSenha(
                     encoder.encode(dto.getSenha())
             );
         }
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
         return repository.save(user);
     }
 
 
-// =========================================================
-// LISTAGEM DE CLIENTES PARA PEDIDOS
-// =========================================================
+    // =========================================================
+    // LISTAGEM DE CLIENTES PARA PEDIDOS
+    // =========================================================
 
     public List<User> listarClientes() {
 
         return repository.findAll()
                 .stream()
-                .filter(user -> user.getRole() == Role.CLIENTE)
+                .filter(user ->
+                        user.getRole() == Role.CLIENTE
+                )
                 .toList();
     }
 
 
-// =========================================================
-// VÍNCULO COM EQUIPE
-// =========================================================
+    // =========================================================
+    // VÍNCULO COM EQUIPE
+    // =========================================================
 
     public User vincularEquipe(
             String usuarioId,
@@ -391,6 +406,10 @@ public class UserService {
                 );
 
         user.setEquipeId(equipeId);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
 
         return repository.save(user);
     }
@@ -409,12 +428,157 @@ public class UserService {
 
         user.setEquipeId(null);
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
         return repository.save(user);
     }
 
+
+    // =========================================================
+    // CLIENTES DISPONÍVEIS PARA EQUIPE
+    // =========================================================
+
     public List<User> listarClientesDisponiveisParaEquipe() {
-        return repository.findByRoleAndEquipeIdIsNull(Role.CLIENTE);
+
+        return repository.findByRoleAndEquipeIdIsNull(
+                Role.CLIENTE
+        );
     }
 
 
+    // =========================================================
+    // ENTRAR EM EQUIPE
+    // =========================================================
+
+    public User entrarNaEquipe(
+            String usuarioId,
+            String equipeId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+
+        // -----------------------------------------------------
+        // O usuário precisa ser CLIENTE
+        // -----------------------------------------------------
+
+        if (user.getRole() != Role.CLIENTE) {
+
+            throw new RuntimeException(
+                    "Somente clientes podem entrar em uma equipe"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // O usuário não pode estar em outra equipe
+        // -----------------------------------------------------
+
+        if (user.getEquipeId() != null) {
+
+            throw new RuntimeException(
+                    "Este usuário já pertence a uma equipe"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // Vincula equipe
+        // CLIENTE → TECNICO
+        // -----------------------------------------------------
+
+        user.setEquipeId(equipeId);
+
+        user.setRole(Role.TECNICO);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+
+        return repository.save(user);
+    }
+
+
+    // =========================================================
+    // SAIR DA EQUIPE
+    // =========================================================
+
+    public User sairDaEquipe(
+            String usuarioId,
+            String equipeId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+
+        // -----------------------------------------------------
+        // O usuário precisa ser TECNICO
+        // -----------------------------------------------------
+
+        if (user.getRole() != Role.TECNICO) {
+
+            throw new RuntimeException(
+                    "O usuário não é um técnico"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // Confere se pertence à equipe informada
+        // -----------------------------------------------------
+
+        if (
+                user.getEquipeId() == null
+                        || !user.getEquipeId().equals(equipeId)
+        ) {
+
+            throw new RuntimeException(
+                    "O usuário não pertence a esta equipe"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // Remove vínculo
+        // TECNICO → CLIENTE
+        // -----------------------------------------------------
+
+        user.setEquipeId(null);
+
+        user.setRole(Role.CLIENTE);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+
+        return repository.save(user);
+    }
+
+
+    // =========================================================
+    // LISTAR USUÁRIOS DA EQUIPE
+    // =========================================================
+
+    public List<User> listarPorEquipeId(
+            String equipeId
+    ) {
+
+        return repository.findByEquipeId(
+                equipeId
+        );
+    }
 }

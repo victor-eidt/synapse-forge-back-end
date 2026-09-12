@@ -7,8 +7,7 @@ import synapseforge.crud.infrastructure.entity.StatusConviteEquipe;
 import java.util.List;
 import java.util.Optional;
 
-public interface ConviteEquipeRepository
-        extends MongoRepository<ConviteEquipe, String> {
+public interface ConviteEquipeRepository extends MongoRepository<ConviteEquipe, String> {
 
     Optional<ConviteEquipe> findByToken(String token);
 
@@ -28,4 +27,3 @@ public interface ConviteEquipeRepository
             StatusConviteEquipe status
     );
 }
-
