@@ -9,12 +9,19 @@ import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.stereotype.Service;
 
 import synapseforge.crud.DTO.Equipe.EquipeResponseDTO;
+import synapseforge.crud.infrastructure.entity.ConviteEquipe;
 import synapseforge.crud.infrastructure.entity.Equipe;
+import synapseforge.crud.infrastructure.entity.Role;
+import synapseforge.crud.infrastructure.entity.StatusConviteEquipe;
+import synapseforge.crud.infrastructure.entity.User;
+import synapseforge.crud.infrastructure.repository.ConviteEquipeRepository;
 import synapseforge.crud.infrastructure.repository.EquipeRepository;
+import synapseforge.crud.infrastructure.repository.UserRepository;
 
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -25,6 +32,12 @@ public class EquipeService {
 
     @Autowired
     private GridFsTemplate gridFsTemplate;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private ConviteEquipeRepository conviteEquipeRepository;
 
 
     // =========================================================
@@ -283,8 +296,62 @@ public class EquipeService {
                         gerenteId
                 );
 
+        /*
+         * Antes de excluir a equipe, removemos o vínculo
+         * dos usuários que pertenciam a ela.
+         *
+         * Técnicos que estavam nessa equipe voltam a ser
+         * clientes, pois deixam de pertencer a uma equipe.
+         */
+        List<User> integrantes =
+                userRepository.findByEquipeId(id);
+
+        for (User integrante : integrantes) {
+
+            integrante.setEquipeId(null);
+
+            if (integrante.getRole() == Role.TECNICO) {
+
+                integrante.setRole(
+                        Role.CLIENTE
+                );
+            }
+
+            integrante.setAtualizadoEm(
+                    LocalDateTime.now()
+            );
+
+            userRepository.save(integrante);
+        }
+
+
+        /*
+         * Convites pendentes desta equipe deixam de fazer
+         * sentido depois que a equipe é excluída.
+         */
+        List<ConviteEquipe> convites =
+                conviteEquipeRepository.findByEquipeIdAndStatus(
+                        id,
+                        StatusConviteEquipe.PENDENTE
+                );
+
+        if (!convites.isEmpty()) {
+
+            conviteEquipeRepository.deleteAll(
+                    convites
+            );
+        }
+
+
+        /*
+         * Exclui a equipe.
+         */
         repository.deleteById(id);
 
+
+        /*
+         * Remove os arquivos associados do GridFS.
+         */
         deletarArquivoGridFs(
                 equipe.getFotoFileId()
         );

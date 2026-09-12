@@ -1,18 +1,22 @@
 package synapseforge.crud.controller;
 
-import jakarta.validation.constraints.NotBlank;
-
-import org.bson.types.ObjectId;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 
+import jakarta.validation.Valid;
+
+import synapseforge.crud.DTO.Equipe.ConviteEquipeResponseDTO;
+import synapseforge.crud.DTO.Equipe.EquipeRequestDTO;
 import synapseforge.crud.DTO.Equipe.EquipeResponseDTO;
+import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.ConviteEquipe;
 import synapseforge.crud.infrastructure.entity.Equipe;
 import synapseforge.crud.infrastructure.entity.User;
@@ -20,23 +24,16 @@ import synapseforge.crud.service.ConviteEquipeService;
 import synapseforge.crud.service.EquipeService;
 import synapseforge.crud.service.UserService;
 
-import org.springframework.data.mongodb.gridfs.GridFsTemplate;
-
-import java.io.IOException;
 import java.util.List;
 
 @RestController
 @RequestMapping("/equipes")
+@RequiredArgsConstructor
 public class EquipeController {
 
-    @Autowired
-    private EquipeService service;
-
-    @Autowired
-    private UserService userService;
-
-    @Autowired
-    private ConviteEquipeService conviteEquipeService;
+    private final EquipeService service;
+    private final UserService userService;
+    private final ConviteEquipeService conviteEquipeService;
 
     @Autowired
     private GridFsTemplate gridFsTemplate;
@@ -46,169 +43,84 @@ public class EquipeController {
     // CRIAR EQUIPE
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('GERENTE', 'ADMIN')"
-    )
-    @PostMapping(
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-    )
-    public EquipeResponseDTO criar(
-            @RequestParam("nome")
-            @NotBlank
-            String nome,
-
-            @RequestParam(value = "foto", required = false)
-            MultipartFile foto,
-
-            @RequestParam(value = "banner", required = false)
-            MultipartFile banner,
-
-            Authentication auth
-    ) throws IOException {
-
-        String usuarioId =
-                (String) auth.getPrincipal();
-
-
-        // -----------------------------------------------------
-        // Verifica se o gerente já possui equipe
-        // -----------------------------------------------------
-
-        if (
-                service.buscarPorGerenteId(usuarioId)
-                        .isPresent()
-        ) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "O gerente já possui uma equipe"
-            );
-        }
-
-
-        // -----------------------------------------------------
-        // Salva foto no GridFS
-        // -----------------------------------------------------
-
-        String fotoFileId = null;
-
-        if (
-                foto != null
-                        && !foto.isEmpty()
-        ) {
-
-            ObjectId id =
-                    serviceGridFsStore(
-                            foto
-                    );
-
-            fotoFileId =
-                    id.toHexString();
-        }
-
-
-        // -----------------------------------------------------
-        // Salva banner no GridFS
-        // -----------------------------------------------------
-
-        String bannerFileId = null;
-
-        if (
-                banner != null
-                        && !banner.isEmpty()
-        ) {
-
-            ObjectId id =
-                    serviceGridFsStore(
-                            banner
-                    );
-
-            bannerFileId =
-                    id.toHexString();
-        }
-
-
-        // -----------------------------------------------------
-        // Cria equipe
-        // -----------------------------------------------------
-
-        Equipe equipe;
-
-        try {
-
-            equipe =
-                    service.criar(
-                            usuarioId,
-                            nome,
-                            fotoFileId,
-                            bannerFileId
-                    );
-
-        } catch (RuntimeException e) {
-
-            // Se algo der errado depois de salvar os arquivos,
-            // evita deixar arquivos órfãos no GridFS.
-
-            if (fotoFileId != null) {
-                deletarArquivoGridFs(fotoFileId);
-            }
-
-            if (bannerFileId != null) {
-                deletarArquivoGridFs(bannerFileId);
-            }
-
-            throw e;
-        }
-
-
-        return service.toResponseDTO(
-                equipe
-        );
-    }
-
-
-    // =========================================================
-    // BUSCAR MINHA EQUIPE
-    // =========================================================
-
-    @PreAuthorize(
-            "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
-    )
-    @GetMapping("/minha")
-    public EquipeResponseDTO minhaEquipe(
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @PostMapping
+    public ResponseEntity<EquipeResponseDTO> criar(
+            @Valid @RequestBody EquipeRequestDTO dto,
             Authentication auth
     ) {
 
-        String usuarioId =
-                (String) auth.getPrincipal();
+        String gerenteId = (String) auth.getPrincipal();
 
-        Equipe equipe =
-                service.buscarPorGerenteId(
-                                usuarioId
-                        )
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                HttpStatus.NOT_FOUND,
-                                                "Equipe não encontrada"
-                                        )
-                        );
-
-        return service.toResponseDTO(
-                equipe
+        Equipe equipe = service.criar(
+                gerenteId,
+                dto.getNome(),
+                null,
+                null
         );
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(service.toResponseDTO(equipe));
     }
 
 
     // =========================================================
-    // BUSCAR CLIENTES DISPONÍVEIS PARA CONVITE
+    // MINHA EQUIPE
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('GERENTE', 'ADMIN')"
-    )
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN', 'TECNICO')")
+    @GetMapping("/minha")
+    public ResponseEntity<EquipeResponseDTO> minhaEquipe(
+            Authentication auth
+    ) {
+
+        String usuarioId = (String) auth.getPrincipal();
+
+        User usuario = userService.buscarPorId(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException("Usuário não encontrado")
+                );
+
+        // GERENTE/ADMIN procuram pela equipe que administram
+        if (usuario.getRole().name().equals("GERENTE")
+                || usuario.getRole().name().equals("ADMIN")) {
+
+            return service.buscarPorGerenteId(usuarioId)
+                    .map(equipe ->
+                            ResponseEntity.ok(
+                                    service.toResponseDTO(equipe)
+                            )
+                    )
+                    .orElseGet(() ->
+                            ResponseEntity.notFound().build()
+                    );
+        }
+
+        // TÉCNICO procura pela equipe vinculada ao seu equipeId
+        if (usuario.getEquipeId() == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return service.buscarPorId(usuario.getEquipeId())
+                .map(equipe ->
+                        ResponseEntity.ok(
+                                service.toResponseDTO(equipe)
+                        )
+                )
+                .orElseGet(() ->
+                        ResponseEntity.notFound().build()
+                );
+    }
+
+
+    // =========================================================
+    // CLIENTES DISPONÍVEIS PARA CONVITE
+    // =========================================================
+
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @GetMapping("/minha/clientes-disponiveis")
-    public List<synapseforge.crud.DTO.User.UserResponseDTO> listarClientesDisponiveis(
+    public List<UserResponseDTO> listarClientesDisponiveis(
             Authentication auth
     ) {
 
@@ -222,12 +134,54 @@ public class EquipeController {
 
 
     // =========================================================
-    // CRIAR CONVITE PARA ENTRAR NA EQUIPE
+    // INTEGRANTES DA EQUIPE
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('GERENTE', 'ADMIN')"
-    )
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN', 'TECNICO')")
+    @GetMapping("/minha/integrantes")
+    public List<UserResponseDTO> listarIntegrantes(
+            Authentication auth
+    ) {
+
+        String usuarioId = (String) auth.getPrincipal();
+
+        User usuario = userService.buscarPorId(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException("Usuário não encontrado")
+                );
+
+        String equipeId = usuario.getEquipeId();
+
+        // GERENTE/ADMIN não possuem equipeId atualmente.
+        if (equipeId == null &&
+                (usuario.getRole().name().equals("GERENTE")
+                        || usuario.getRole().name().equals("ADMIN"))) {
+
+            equipeId = service.buscarPorGerenteId(usuarioId)
+                    .map(Equipe::getId)
+                    .orElseThrow(() ->
+                            new RuntimeException("Você não possui uma equipe")
+                    );
+        }
+
+        if (equipeId == null) {
+            throw new RuntimeException(
+                    "Você não pertence a nenhuma equipe"
+            );
+        }
+
+        return userService.listarPorEquipeId(equipeId)
+                .stream()
+                .map(userService::toResponseDTO)
+                .toList();
+    }
+
+
+    // =========================================================
+    // CRIAR CONVITE
+    // =========================================================
+
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @PostMapping("/{equipeId}/convites/{usuarioId}")
     public ConviteEquipe criarConvite(
             @PathVariable String equipeId,
@@ -235,255 +189,227 @@ public class EquipeController {
             Authentication auth
     ) {
 
-        String gerenteId =
-                (String) auth.getPrincipal();
+        String gerenteId = (String) auth.getPrincipal();
 
-
-        ConviteEquipe convite =
-                conviteEquipeService.criarConvite(
-                        equipeId,
-                        gerenteId,
-                        usuarioId
-                );
-
-
-        return convite;
-    }
-
-
-    // =========================================================
-    // BUSCAR EQUIPE POR ID
-    // =========================================================
-
-    @PreAuthorize(
-            "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
-    )
-    @GetMapping("/{id}")
-    public EquipeResponseDTO buscar(
-            @PathVariable String id
-    ) {
-
-        Equipe equipe =
-                service.buscarPorId(id)
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                HttpStatus.NOT_FOUND,
-                                                "Equipe não encontrada"
-                                        )
-                        );
-
-        return service.toResponseDTO(
-                equipe
+        return conviteEquipeService.criarConvite(
+                equipeId,
+                gerenteId,
+                usuarioId
         );
     }
 
 
     // =========================================================
-    // ATUALIZAR NOME
+    // LISTAR CONVITES PENDENTES DA EQUIPE
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('GERENTE', 'ADMIN')"
-    )
-    @PutMapping("/{id}")
-    public EquipeResponseDTO atualizar(
-            @PathVariable String id,
-
-            @RequestBody
-            @jakarta.validation.Valid
-            synapseforge.crud.DTO.Equipe.EquipeRequestDTO dto,
-
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @GetMapping("/{equipeId}/convites")
+    public List<ConviteEquipeResponseDTO> listarConvites(
+            @PathVariable String equipeId,
             Authentication auth
     ) {
 
-        String usuarioId =
-                (String) auth.getPrincipal();
+        String gerenteId = (String) auth.getPrincipal();
+
+        // Garante que o gerente realmente é dono da equipe
+        service.buscarPorId(equipeId)
+                .filter(equipe ->
+                        gerenteId.equals(equipe.getGerenteId())
+                )
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Você não possui permissão para acessar esta equipe"
+                        )
+                );
+
+        return conviteEquipeService
+                .listarConvitesDaEquipe(equipeId)
+                .stream()
+                .map(conviteEquipeService::toResponseDTO)
+                .toList();
+    }
+
+
+    // =========================================================
+    // CONSULTAR CONVITE PELO TOKEN
+    // =========================================================
+
+    @GetMapping("/convites/{token}")
+    public ConviteEquipeResponseDTO buscarConvite(
+            @PathVariable String token
+    ) {
+
+        ConviteEquipe convite =
+                conviteEquipeService.buscarPorToken(token);
+
+        return conviteEquipeService.toResponseDTO(convite);
+    }
+
+
+    // =========================================================
+    // ACEITAR CONVITE
+    // =========================================================
+
+    @PostMapping("/convites/{token}/aceitar")
+    public UserResponseDTO aceitarConvite(
+            @PathVariable String token
+    ) {
+
+        User usuario =
+                conviteEquipeService.aceitarConvite(token);
+
+        return userService.toResponseDTO(usuario);
+    }
+
+
+    // =========================================================
+    // RECUSAR CONVITE
+    // =========================================================
+
+    @PostMapping("/convites/{token}/recusar")
+    public UserResponseDTO recusarConvite(
+            @PathVariable String token
+    ) {
+
+        User usuario =
+                conviteEquipeService.recusarConvite(token);
+
+        return userService.toResponseDTO(usuario);
+    }
+
+
+    // =========================================================
+    // REMOVER INTEGRANTE
+    // =========================================================
+
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @DeleteMapping("/{equipeId}/integrantes/{usuarioId}")
+    public UserResponseDTO removerIntegrante(
+            @PathVariable String equipeId,
+            @PathVariable String usuarioId,
+            Authentication auth
+    ) {
+
+        String gerenteId = (String) auth.getPrincipal();
+
+        service.buscarPorId(equipeId)
+                .filter(equipe ->
+                        gerenteId.equals(equipe.getGerenteId())
+                )
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Você não possui permissão para acessar esta equipe"
+                        )
+                );
+
+        User usuario =
+                userService.sairDaEquipe(
+                        usuarioId,
+                        equipeId
+                );
+
+        return userService.toResponseDTO(usuario);
+    }
+
+
+    // =========================================================
+    // TÉCNICO SAI DA EQUIPE
+    // =========================================================
+
+    @PreAuthorize("hasRole('TECNICO')")
+    @DeleteMapping("/minha/integrantes")
+    public UserResponseDTO sairDaEquipe(
+            Authentication auth
+    ) {
+
+        String usuarioId = (String) auth.getPrincipal();
+
+        User usuario = userService.buscarPorId(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException("Usuário não encontrado")
+                );
+
+        if (usuario.getEquipeId() == null) {
+            throw new RuntimeException(
+                    "Você não pertence a nenhuma equipe"
+            );
+        }
+
+        User atualizado =
+                userService.sairDaEquipe(
+                        usuarioId,
+                        usuario.getEquipeId()
+                );
+
+        return userService.toResponseDTO(atualizado);
+    }
+
+
+    // =========================================================
+    // ATUALIZAR NOME DA EQUIPE
+    // =========================================================
+
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @PutMapping("/{id}")
+    public EquipeResponseDTO atualizar(
+            @PathVariable String id,
+            @Valid @RequestBody EquipeRequestDTO dto,
+            Authentication auth
+    ) {
+
+        String gerenteId = (String) auth.getPrincipal();
 
         Equipe equipe =
                 service.atualizar(
                         id,
-                        usuarioId,
+                        gerenteId,
                         dto.getNome()
                 );
 
-        return service.toResponseDTO(
-                equipe
-        );
+        return service.toResponseDTO(equipe);
     }
 
 
     // =========================================================
-    // ATUALIZAR FOTO
+    // UPLOAD DA FOTO
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('GERENTE', 'ADMIN')"
-    )
-    @PutMapping(
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @PostMapping(
             value = "/{id}/foto",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
-    public EquipeResponseDTO atualizarFoto(
+    public EquipeResponseDTO uploadFoto(
             @PathVariable String id,
-
-            @RequestParam("foto")
-            MultipartFile foto,
-
+            @RequestParam("file") MultipartFile file,
             Authentication auth
-    ) throws IOException {
+    ) throws Exception {
 
-        if (
-                foto == null
-                        || foto.isEmpty()
-        ) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Nenhuma foto foi enviada"
-            );
-        }
-
-        String usuarioId =
-                (String) auth.getPrincipal();
+        String gerenteId = (String) auth.getPrincipal();
 
 
-        // Primeiro valida se o gerente pode alterar
-        // essa equipe.
-        Equipe existente =
-                service.buscarPorId(id)
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                HttpStatus.NOT_FOUND,
-                                                "Equipe não encontrada"
-                                        )
-                        );
+        org.bson.Document meta =
+                new org.bson.Document();
 
-        if (!usuarioId.equals(
-                existente.getGerenteId()
-        )) {
+        meta.put("contentType", file.getContentType());
 
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Você não possui permissão para alterar esta equipe"
-            );
-        }
-
-
-        ObjectId fileId =
-                serviceGridFsStore(
-                        foto
+        Object fileId =
+                gridFsTemplate.store(
+                        file.getInputStream(),
+                        file.getOriginalFilename(),
+                        file.getContentType(),
+                        meta
                 );
 
-        try {
-
-            Equipe equipe =
-                    service.salvarFoto(
-                            id,
-                            usuarioId,
-                            fileId.toHexString()
-                    );
-
-            return service.toResponseDTO(
-                    equipe
-            );
-
-        } catch (RuntimeException e) {
-
-            deletarArquivoGridFs(
-                    fileId.toHexString()
-            );
-
-            throw e;
-        }
-    }
-
-
-    // =========================================================
-    // ATUALIZAR BANNER
-    // =========================================================
-
-    @PreAuthorize(
-            "hasAnyRole('GERENTE', 'ADMIN')"
-    )
-    @PutMapping(
-            value = "/{id}/banner",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-    )
-    public EquipeResponseDTO atualizarBanner(
-            @PathVariable String id,
-
-            @RequestParam("banner")
-            MultipartFile banner,
-
-            Authentication auth
-    ) throws IOException {
-
-        if (
-                banner == null
-                        || banner.isEmpty()
-        ) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Nenhum banner foi enviado"
-            );
-        }
-
-        String usuarioId =
-                (String) auth.getPrincipal();
-
-
-        // Primeiro valida se o gerente pode alterar
-        // essa equipe.
-        Equipe existente =
-                service.buscarPorId(id)
-                        .orElseThrow(
-                                () ->
-                                        new ResponseStatusException(
-                                                HttpStatus.NOT_FOUND,
-                                                "Equipe não encontrada"
-                                        )
-                        );
-
-        if (!usuarioId.equals(
-                existente.getGerenteId()
-        )) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Você não possui permissão para alterar esta equipe"
-            );
-        }
-
-
-        ObjectId fileId =
-                serviceGridFsStore(
-                        banner
+        Equipe equipe =
+                service.salvarFoto(
+                        id,
+                        gerenteId,
+                        fileId.toString()
                 );
 
-        try {
-
-            Equipe equipe =
-                    service.salvarBanner(
-                            id,
-                            usuarioId,
-                            fileId.toHexString()
-                    );
-
-            return service.toResponseDTO(
-                    equipe
-            );
-
-        } catch (RuntimeException e) {
-
-            deletarArquivoGridFs(
-                    fileId.toHexString()
-            );
-
-            throw e;
-        }
+        return service.toResponseDTO(equipe);
     }
 
 
@@ -491,27 +417,63 @@ public class EquipeController {
     // REMOVER FOTO
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('GERENTE', 'ADMIN')"
-    )
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @DeleteMapping("/{id}/foto")
     public EquipeResponseDTO removerFoto(
             @PathVariable String id,
             Authentication auth
     ) {
 
-        String usuarioId =
-                (String) auth.getPrincipal();
+        String gerenteId = (String) auth.getPrincipal();
 
         Equipe equipe =
                 service.removerFoto(
                         id,
-                        usuarioId
+                        gerenteId
                 );
 
-        return service.toResponseDTO(
-                equipe
-        );
+        return service.toResponseDTO(equipe);
+    }
+
+
+    // =========================================================
+    // UPLOAD DO BANNER
+    // =========================================================
+
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @PostMapping(
+            value = "/{id}/banner",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public EquipeResponseDTO uploadBanner(
+            @PathVariable String id,
+            @RequestParam("file") MultipartFile file,
+            Authentication auth
+    ) throws Exception {
+
+        String gerenteId = (String) auth.getPrincipal();
+
+        org.bson.Document meta =
+                new org.bson.Document();
+
+        meta.put("contentType", file.getContentType());
+
+        Object fileId =
+                gridFsTemplate.store(
+                        file.getInputStream(),
+                        file.getOriginalFilename(),
+                        file.getContentType(),
+                        meta
+                );
+
+        Equipe equipe =
+                service.salvarBanner(
+                        id,
+                        gerenteId,
+                        fileId.toString()
+                );
+
+        return service.toResponseDTO(equipe);
     }
 
 
@@ -519,27 +481,22 @@ public class EquipeController {
     // REMOVER BANNER
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('GERENTE', 'ADMIN')"
-    )
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @DeleteMapping("/{id}/banner")
     public EquipeResponseDTO removerBanner(
             @PathVariable String id,
             Authentication auth
     ) {
 
-        String usuarioId =
-                (String) auth.getPrincipal();
+        String gerenteId = (String) auth.getPrincipal();
 
         Equipe equipe =
                 service.removerBanner(
                         id,
-                        usuarioId
+                        gerenteId
                 );
 
-        return service.toResponseDTO(
-                equipe
-        );
+        return service.toResponseDTO(equipe);
     }
 
 
@@ -547,66 +504,17 @@ public class EquipeController {
     // DELETAR EQUIPE
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('GERENTE', 'ADMIN')"
-    )
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @DeleteMapping("/{id}")
-    public void deletar(
+    public ResponseEntity<Void> deletar(
             @PathVariable String id,
             Authentication auth
     ) {
 
-        String usuarioId =
-                (String) auth.getPrincipal();
+        String gerenteId = (String) auth.getPrincipal();
 
-        service.deletar(
-                id,
-                usuarioId
-        );
-    }
+        service.deletar(id, gerenteId);
 
-
-    // =========================================================
-    // GRIDFS STORE
-    // =========================================================
-
-    private ObjectId serviceGridFsStore(
-            MultipartFile arquivo
-    ) throws IOException {
-
-        return gridFsTemplate.store(
-                arquivo.getInputStream(),
-                arquivo.getOriginalFilename(),
-                arquivo.getContentType()
-        );
-    }
-
-
-    // =========================================================
-    // DELETAR ARQUIVO DO GRIDFS
-    // =========================================================
-
-    private void deletarArquivoGridFs(
-            String id
-    ) {
-
-        if (
-                id == null
-                        || !ObjectId.isValid(id)
-        ) {
-
-            return;
-        }
-
-        gridFsTemplate.delete(
-                new org.springframework.data.mongodb.core.query.Query(
-                        org.springframework.data.mongodb.core.query.Criteria
-                                .where("_id")
-                                .is(
-                                        new ObjectId(id)
-                                )
-                )
-        );
+        return ResponseEntity.noContent().build();
     }
 }
-
