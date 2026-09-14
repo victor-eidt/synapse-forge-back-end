@@ -56,6 +56,7 @@ class UserServiceUnitTest {
 
     @Test
     void deletarCallsRepositoryDelete() {
+        when(repository.existsById("del-1")).thenReturn(true);
         userService.deletar("del-1");
         verify(repository).deleteById("del-1");
     }

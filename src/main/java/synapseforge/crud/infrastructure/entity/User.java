@@ -27,21 +27,25 @@ public class User {
     private String telefone;
     private Role role;
 
+    // Controle de login
     private int tentativasLogin = 0;
-
     private boolean ativo;
 
+    // Datas
     private LocalDateTime criadoEm;
     private LocalDateTime bloqueadoEm;
-    private LocalDateTime AtualizadoEm;
+    private LocalDateTime atualizadoEm;
 
+    // Recuperação de senha
     private String resetToken;
     private LocalDateTime resetTokenExpira;
 
+    // Confirmação de email
     private boolean emailConfirmado;
     private String emailConfirmToken;
     private LocalDateTime emailConfirmTokenExpira;
 
+    // Alteração de email
     private String emailPendente;
     private String emailMudancaToken;
     private LocalDateTime emailMudancaTokenExpira;

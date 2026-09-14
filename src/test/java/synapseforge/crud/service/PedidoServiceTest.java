@@ -18,6 +18,7 @@ import synapseforge.crud.infrastructure.entity.ItemConsumo;
 import synapseforge.crud.infrastructure.entity.Material;
 import synapseforge.crud.infrastructure.entity.MovimentoEstoque;
 import synapseforge.crud.infrastructure.entity.Pedido;
+import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.infrastructure.entity.TipoInsumo;
 import synapseforge.crud.infrastructure.entity.TipoMovimento;
@@ -92,7 +93,7 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        Pedido result = service.avancarStatus("p-1", "user-1");
+        Pedido result = service.avancarStatus("p-1", "user-1", Role.ADMIN);
 
         assertEquals(StatusPedido.IMPRESSAO, result.getStatus());
     }
@@ -107,7 +108,7 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        Pedido result = service.regredirStatus("p-1", "user-1");
+        Pedido result = service.regredirStatus("p-1", "user-1", Role.ADMIN);
 
         assertEquals(StatusPedido.MODELAGEM, result.getStatus());
     }
@@ -122,7 +123,7 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        service.avancarStatus("p-1", "user-1");
+        service.avancarStatus("p-1", "user-1", Role.ADMIN);
 
         verify(estoqueService).baixarPorEtapa("p-1", StatusPedido.IMPRESSAO, "user-1");
     }
@@ -139,7 +140,7 @@ class PedidoServiceTest {
                 new EstoqueInsuficienteException.Falta("Resina Cinza", new BigDecimal("100"), new BigDecimal("50")))))
                 .when(estoqueService).baixarPorEtapa("p-1", StatusPedido.IMPRESSAO, "user-1");
 
-        assertThrows(EstoqueInsuficienteException.class, () -> service.avancarStatus("p-1", "user-1"));
+        assertThrows(EstoqueInsuficienteException.class, () -> service.avancarStatus("p-1", "user-1", Role.ADMIN));
 
         verify(repository, never()).save(any());
     }
@@ -154,9 +155,26 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        service.regredirStatus("p-1", "user-1");
+        service.regredirStatus("p-1", "user-1", Role.ADMIN);
 
         verify(estoqueService).estornarPorEtapa("p-1", StatusPedido.IMPRESSAO, "user-1");
+    }
+
+    @Test
+    void clienteNaoPodeMudarEtapaNemCancelar() {
+        // a checagem de perfil vem antes de qualquer acesso ao pedido ou ao estoque
+        RuntimeException aoAvancar = assertThrows(RuntimeException.class,
+                () -> service.avancarStatus("p-1", "user-1", Role.CLIENTE));
+        RuntimeException aoRegredir = assertThrows(RuntimeException.class,
+                () -> service.regredirStatus("p-1", "user-1", Role.CLIENTE));
+        RuntimeException aoCancelar = assertThrows(RuntimeException.class,
+                () -> service.cancelar("p-1", "user-1", Role.CLIENTE));
+
+        assertEquals("Cliente não possui permissão para alterar pedidos", aoAvancar.getMessage());
+        assertEquals("Cliente não possui permissão para alterar pedidos", aoRegredir.getMessage());
+        assertEquals("Cliente não possui permissão para alterar pedidos", aoCancelar.getMessage());
+        verify(repository, never()).save(any());
+        verifyNoInteractions(estoqueService);
     }
 
     @Test
@@ -169,7 +187,7 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        Pedido result = service.cancelar("p-1", "user-1");
+        Pedido result = service.cancelar("p-1", "user-1", Role.ADMIN);
 
         assertEquals(StatusPedido.CANCELADO, result.getStatus());
         verify(estoqueService, never()).estornarPorEtapa(any(), any(), any());
@@ -223,7 +241,7 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        Pedido result = service.cancelar("p-1", "user-1");
+        Pedido result = service.cancelar("p-1", "user-1", Role.ADMIN);
 
         assertEquals(StatusPedido.CANCELADO, result.getStatus());
         // o consumo realizado permanece: saldo segue debitado e nenhum movimento novo é gravado
@@ -244,9 +262,9 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
 
         RuntimeException aoAvancar = assertThrows(RuntimeException.class,
-                () -> service.avancarStatus("p-1", "user-1"));
+                () -> service.avancarStatus("p-1", "user-1", Role.ADMIN));
         RuntimeException aoRegredir = assertThrows(RuntimeException.class,
-                () -> service.regredirStatus("p-1", "user-1"));
+                () -> service.regredirStatus("p-1", "user-1", Role.ADMIN));
 
         assertEquals("Pedido cancelado não pode mudar de etapa", aoAvancar.getMessage());
         assertEquals("Pedido cancelado não pode mudar de etapa", aoRegredir.getMessage());
@@ -274,7 +292,7 @@ class PedidoServiceTest {
         when(repository.findById("p-1")).thenReturn(Optional.of(pedido));
         when(repository.save(pedido)).thenReturn(pedido);
 
-        Pedido result = service.atualizar("p-1", "user-1", dados);
+        Pedido result = service.atualizar("p-1", "user-1", Role.ADMIN, dados);
 
         assertEquals("Cliente B", result.getCliente());
         assertEquals(StatusPedido.IMPRESSAO, result.getStatus());
@@ -292,7 +310,7 @@ class PedidoServiceTest {
 
         ReflectionTestUtils.setField(service, "gridFsTemplate", gridFsTemplate);
 
-        service.deletar("p-1", "user-1");
+        service.deletar("p-1", "user-1", Role.ADMIN);
 
         verify(repository).deleteById("p-1");
     }

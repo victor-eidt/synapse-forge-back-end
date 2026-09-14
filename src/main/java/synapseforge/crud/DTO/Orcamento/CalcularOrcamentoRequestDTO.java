@@ -8,10 +8,22 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Getter
 @Setter
 public class CalcularOrcamentoRequestDTO {
+
+    @NotBlank
+    private String cliente;
+
+    @NotBlank
+    private String projeto;
+
+    private String descricao;
+
+    @NotNull
+    private LocalDate prazo;
 
     @NotBlank
     private String materialId;

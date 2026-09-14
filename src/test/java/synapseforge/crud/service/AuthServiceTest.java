@@ -73,10 +73,11 @@ class AuthServiceTest {
         user.setSenha("hash");
         user.setEmailConfirmado(true);
         user.setTentativasLogin(0);
+        user.setRole(Role.CLIENTE);
 
         when(repository.findByEmail("ana@teste.com")).thenReturn(Optional.of(user));
         when(encoder.matches("123456", "hash")).thenReturn(true);
-        when(jwtService.generateToken("u-1")).thenReturn("jwt-token");
+        when(jwtService.generateToken("u-1", Role.CLIENTE)).thenReturn("jwt-token");
 
         Map<String, String> result = service.login(dto);
 
@@ -91,9 +92,10 @@ class AuthServiceTest {
         user.setEmail("ana@teste.com");
         user.setEmailConfirmToken("token-123");
         user.setEmailConfirmTokenExpira(LocalDateTime.now().plusHours(1));
+        user.setRole(Role.CLIENTE);
 
         when(repository.findByEmailConfirmToken("token-123")).thenReturn(Optional.of(user));
-        when(jwtService.generateToken("u-1")).thenReturn("jwt-confirmado");
+        when(jwtService.generateToken("u-1", Role.CLIENTE)).thenReturn("jwt-confirmado");
 
         Map<String, String> result = service.confirmarEmail("token-123");
 

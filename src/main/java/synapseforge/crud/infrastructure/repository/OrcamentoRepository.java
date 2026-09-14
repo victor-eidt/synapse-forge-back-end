@@ -8,4 +8,6 @@ import java.util.List;
 public interface OrcamentoRepository extends MongoRepository<Orcamento, String> {
 
     List<Orcamento> findAllByOrderByCriadoEmDesc();
+
+    List<Orcamento> findByUsuarioIdOrderByCriadoEmDesc(String usuarioId);
 }
