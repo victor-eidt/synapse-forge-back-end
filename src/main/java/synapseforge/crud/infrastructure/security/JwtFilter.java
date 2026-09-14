@@ -9,6 +9,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 import synapseforge.crud.infrastructure.security.JwtService;
 
@@ -38,15 +39,16 @@ public class JwtFilter extends OncePerRequestFilter {
 
             try {
                 String userId = jwtService.extractUserId(token);
+                String role = jwtService.extractRole(token);
 
-                // 🔥 AQUI ESTÁ A PARTE QUE FALTAVA
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
                                 userId,
                                 null,
-                                Collections.emptyList()
+                                Collections.singletonList(
+                                        new SimpleGrantedAuthority("ROLE_" + role)
+                                )
                         );
-
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
             } catch (Exception e) {

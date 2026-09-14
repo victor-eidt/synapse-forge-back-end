@@ -5,6 +5,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.User.LoginDTO;
 import synapseforge.crud.DTO.User.UserRequestDTO;
+import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 import synapseforge.crud.infrastructure.security.JwtService;
@@ -37,7 +38,7 @@ public class AuthService {
         user.setSenha(encoder.encode(dto.getSenha()));
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
-        user.setRole(dto.getRole());
+        user.setRole(Role.CLIENTE);
         user.setAtivo(true);
         user.setCriadoEm(LocalDateTime.now());
         user.setTentativasLogin(0);
@@ -88,7 +89,10 @@ public class AuthService {
         user.setBloqueadoEm(null);
         repository.save(user);
 
-        String token = jwtService.generateToken(user.getId());
+        String token = jwtService.generateToken(
+                user.getId(),
+                user.getRole()
+        );
         return Map.of(
             "access_token", token,
             "user_id", user.getId()
@@ -116,7 +120,10 @@ public class AuthService {
         user.setTentativasLogin(0);
         repository.save(user);
 
-        String jwt = jwtService.generateToken(user.getId());
+        String jwt = jwtService.generateToken(
+                user.getId(),
+                user.getRole()
+        );
         return Map.of(
             "access_token", jwt,
             "user_id", user.getId()
