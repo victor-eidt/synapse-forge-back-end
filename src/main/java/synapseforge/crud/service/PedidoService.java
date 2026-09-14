@@ -29,6 +29,9 @@ public class PedidoService {
     private PedidoRepository repository;
 
     @Autowired
+    private EstoqueService estoqueService;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -349,31 +352,21 @@ public class PedidoService {
                     "Status do pedido inválido"
             );
         }
-
-        StatusPedido[] valores =
-                StatusPedido.values();
-
-        int indiceAtual =
-                statusAtual.ordinal();
-
-        if (
-                indiceAtual >=
-                        valores.length - 1
-        ) {
-
-            throw new RuntimeException(
-                    "Pedido já está finalizado"
-            );
+        if (statusAtual == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido cancelado não pode mudar de etapa");
         }
 
-        pedido.setStatus(
-                valores[indiceAtual + 1]
-        );
+        int indiceAtual = StatusPedido.indiceEtapaProducao(statusAtual);
 
-        pedido.setAtualizadoEm(
-                LocalDateTime.now()
-        );
+        if (indiceAtual >= StatusPedido.ETAPAS_PRODUCAO.size() - 1) {
+            throw new RuntimeException("Pedido já está finalizado");
+        }
 
+        StatusPedido novoStatus = StatusPedido.ETAPAS_PRODUCAO.get(indiceAtual + 1);
+        pedido.setStatus(novoStatus);
+        // se o estoque for insuficiente a exceção sobe e o pedido não é salvo: a etapa não muda
+        estoqueService.baixarPorEtapa(id, novoStatus, usuarioId);
+        pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
     }
 
@@ -404,9 +397,11 @@ public class PedidoService {
                     "Status do pedido inválido"
             );
         }
+        if (statusAtual == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido cancelado não pode mudar de etapa");
+        }
 
-        int indiceAtual =
-                statusAtual.ordinal();
+        int indiceAtual = StatusPedido.indiceEtapaProducao(statusAtual);
 
         if (indiceAtual <= 0) {
 
@@ -415,16 +410,48 @@ public class PedidoService {
             );
         }
 
-        pedido.setStatus(
-                StatusPedido.values()[
-                        indiceAtual - 1
-                        ]
-        );
+        pedido.setStatus(StatusPedido.ETAPAS_PRODUCAO.get(indiceAtual - 1));
+        // o estorno é da etapa abandonada (status atual), não da etapa de destino
+        estoqueService.estornarPorEtapa(id, statusAtual, usuarioId);
+        pedido.setAtualizadoEm(LocalDateTime.now());
+        return repository.save(pedido);
+    }
 
-        pedido.setAtualizadoEm(
-                LocalDateTime.now()
-        );
 
+    // =========================================================
+    // CANCELAR
+    // =========================================================
+
+    public Pedido cancelar(
+            String id,
+            String usuarioId,
+            Role role
+    ) {
+
+        Pedido pedido =
+                buscarPedidoParaEdicao(
+                        id,
+                        usuarioId,
+                        role
+                );
+
+        StatusPedido statusAtual = pedido.getStatus();
+        if (statusAtual == null) {
+            throw new RuntimeException("Status do pedido inválido");
+        }
+        if (statusAtual == StatusPedido.CANCELADO) {
+            throw new RuntimeException("Pedido já está cancelado");
+        }
+        if (statusAtual == StatusPedido.FINALIZADO) {
+            throw new RuntimeException("Pedido finalizado não pode ser cancelado");
+        }
+
+        // Cancelar NÃO estorna: material já consumido virou peça e não volta à prateleira,
+        // e o custo do pedido permanece registrado. Diferente de regredir, que estorna por
+        // ser correção de fluxo (a etapa não aconteceu de fato). Etapas nunca alcançadas
+        // nunca foram debitadas, então seguem no estoque sem qualquer ação aqui.
+        pedido.setStatus(StatusPedido.CANCELADO);
+        pedido.setAtualizadoEm(LocalDateTime.now());
         return repository.save(pedido);
     }
 
@@ -433,6 +460,9 @@ public class PedidoService {
     // ATUALIZAR
     // =========================================================
 
+    // LIMITAÇÃO CONHECIDA: este método aceita trocar o status diretamente, sem passar pelo
+    // gatilho de baixa/estorno de estoque de avancarStatus/regredirStatus — é uma porta
+    // lateral que ignora o estoque. Decisão pendente de alinhamento com o grupo.
     public Pedido atualizar(
             String id,
             String usuarioId,

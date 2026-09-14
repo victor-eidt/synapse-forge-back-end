@@ -119,10 +119,12 @@ public class EstoqueService {
             return;
         }
 
+        List<MovimentoEstoque> movimentosDoPedido = movimentoRepository.findByPedidoId(pedidoId);
         List<BaixaPendente> pendentes = new ArrayList<>();
         List<EstoqueInsuficienteException.Falta> faltas = new ArrayList<>();
         for (ItemConsumo item : politica.itensDe(consumo)) {
-            String chave = chaveIdempotencia(pedidoId, item.getTipoInsumo(), item.getInsumoId(), etapa, TipoMovimento.BAIXA);
+            int ciclo = contarEstornos(movimentosDoPedido, item.getTipoInsumo(), item.getInsumoId(), etapa);
+            String chave = chaveIdempotencia(pedidoId, item.getTipoInsumo(), item.getInsumoId(), etapa, TipoMovimento.BAIXA, ciclo);
             if (movimentoRepository.findByChaveIdempotencia(chave).isPresent()) {
                 continue;
             }
@@ -153,7 +155,7 @@ public class EstoqueService {
 
         for (MovimentoEstoque baixa : baixas) {
             String chaveEstorno = chaveIdempotencia(pedidoId, baixa.getTipoInsumo(), baixa.getInsumoId(),
-                    etapa, TipoMovimento.ESTORNO);
+                    etapa, TipoMovimento.ESTORNO, cicloDaChave(baixa.getChaveIdempotencia()));
             if (movimentoRepository.findByChaveIdempotencia(chaveEstorno).isPresent()) {
                 continue;
             }
@@ -175,9 +177,36 @@ public class EstoqueService {
                 .toList();
     }
 
+    // O ciclo separa reentradas na etapa: cada ESTORNO abre um ciclo novo, então a baixa
+    // seguinte da mesma etapa ganha chave própria e volta a debitar. Dentro do mesmo ciclo
+    // a chave se repete e o índice único do banco segue recusando o segundo movimento.
     private String chaveIdempotencia(String pedidoId, TipoInsumo tipoInsumo, String insumoId,
-                                     StatusPedido etapaOrigem, TipoMovimento tipo) {
-        return pedidoId + ":" + tipoInsumo + ":" + insumoId + ":" + etapaOrigem + ":" + tipo;
+                                     StatusPedido etapaOrigem, TipoMovimento tipo, int ciclo) {
+        return pedidoId + ":" + tipoInsumo + ":" + insumoId + ":" + etapaOrigem + ":" + tipo + ":" + ciclo;
+    }
+
+    private int contarEstornos(List<MovimentoEstoque> movimentosDoPedido, TipoInsumo tipoInsumo,
+                               String insumoId, StatusPedido etapa) {
+        return (int) movimentosDoPedido.stream()
+                .filter(m -> m.getTipo() == TipoMovimento.ESTORNO
+                        && m.getTipoInsumo() == tipoInsumo
+                        && insumoId.equals(m.getInsumoId())
+                        && m.getEtapaOrigem() == etapa)
+                .count();
+    }
+
+    private int cicloDaChave(String chave) {
+        if (chave != null) {
+            int separador = chave.lastIndexOf(':');
+            if (separador >= 0) {
+                try {
+                    return Integer.parseInt(chave.substring(separador + 1));
+                } catch (NumberFormatException ignored) {
+                    // movimento gravado antes de a chave ganhar ciclo
+                }
+            }
+        }
+        return 0;
     }
 
     private BigDecimal converterParaBase(InsumoEstoque insumo, BigDecimal quantidade, UnidadeMedida unidade) {

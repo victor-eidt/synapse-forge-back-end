@@ -407,6 +407,38 @@ public class PedidoController {
 
 
     // =========================================================
+    // CANCELAR PEDIDO
+    // =========================================================
+
+    @PreAuthorize(
+            "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
+    )
+    @PatchMapping("/{id}/cancelar")
+    public PedidoResponseDTO cancelar(
+            @PathVariable String id,
+            Authentication auth
+    ) {
+
+        String usuarioId =
+                (String) auth.getPrincipal();
+
+        Role role =
+                getRole(auth);
+
+        Pedido pedido =
+                service.cancelar(
+                        id,
+                        usuarioId,
+                        role
+                );
+
+        return service.toResponseDTO(
+                pedido
+        );
+    }
+
+
+    // =========================================================
     // ATUALIZAR PEDIDO - JSON
     // =========================================================
 
