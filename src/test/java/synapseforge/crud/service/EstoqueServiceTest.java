@@ -73,7 +73,7 @@ class EstoqueServiceTest {
         when(consumoPedidoRepository.findByPedidoId("ped1"))
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
-        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA"))
+        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0"))
                 .thenReturn(Optional.empty());
         when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
 
@@ -92,41 +92,76 @@ class EstoqueServiceTest {
         assertThat(movimento.getUnidade()).isEqualTo(UnidadeMedida.G);
         assertThat(movimento.getPedidoId()).isEqualTo("ped1");
         assertThat(movimento.getEtapaOrigem()).isEqualTo(StatusPedido.IMPRESSAO);
-        assertThat(movimento.getChaveIdempotencia()).isEqualTo("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA");
+        assertThat(movimento.getChaveIdempotencia()).isEqualTo("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0");
         assertThat(movimento.getCustoTotal()).isEqualByComparingTo("10.00");
     }
 
     @Test
     void baixaRepetidaNaMesmaEtapaNaoDebitaDuasVezes() {
-        when(consumoPedidoRepository.findByPedidoId("ped1"))
-                .thenReturn(Optional.of(ficha("ped1",
-                        item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
-        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA"))
-                .thenReturn(Optional.of(new MovimentoEstoque()));
-
-        service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
-
-        verify(materialRepository, never()).save(any());
-        verify(movimentoRepository, never()).save(any());
-    }
-
-    @Test
-    void reentrarNaEtapaAposEstornoNaoDebitaNovamente() {
-        // Decisão de projeto: um pedido consome seu material uma única vez; retrabalho não
-        // recobra insumo. A chave de idempotência da BAIXA continua existindo mesmo depois
-        // do ESTORNO, então um pedido que volta a entrar na etapa não é debitado de novo.
+        // dois cliques na mesma etapa, sem estorno no meio: mesmo ciclo, mesma chave, sem novo débito
         when(consumoPedidoRepository.findByPedidoId("ped1"))
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
         MovimentoEstoque baixaOriginal = new MovimentoEstoque();
+        baixaOriginal.setTipoInsumo(TipoInsumo.MATERIAL);
+        baixaOriginal.setInsumoId("mat1");
         baixaOriginal.setTipo(TipoMovimento.BAIXA);
-        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA"))
+        baixaOriginal.setEtapaOrigem(StatusPedido.IMPRESSAO);
+        when(movimentoRepository.findByPedidoId("ped1")).thenReturn(List.of(baixaOriginal));
+        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0"))
                 .thenReturn(Optional.of(baixaOriginal));
 
         service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
 
         verify(materialRepository, never()).save(any());
         verify(movimentoRepository, never()).save(any());
+    }
+
+    @Test
+    void reentrarNaEtapaAposEstornoDebitaNovamente() {
+        // Se o regredir devolveu o insumo, a nova entrada na etapa consome de novo: o
+        // ESTORNO abre um ciclo novo e a baixa seguinte ganha chave própria. O histórico
+        // fica com as duas BAIXAs, em ciclos diferentes.
+        Material resina = material("mat1", "Resina Cinza", "500", "100");
+        when(consumoPedidoRepository.findByPedidoId("ped1"))
+                .thenReturn(Optional.of(ficha("ped1",
+                        item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
+
+        MovimentoEstoque baixaCicloZero = new MovimentoEstoque();
+        baixaCicloZero.setTipoInsumo(TipoInsumo.MATERIAL);
+        baixaCicloZero.setInsumoId("mat1");
+        baixaCicloZero.setTipo(TipoMovimento.BAIXA);
+        baixaCicloZero.setEtapaOrigem(StatusPedido.IMPRESSAO);
+        baixaCicloZero.setChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0");
+
+        MovimentoEstoque estornoCicloZero = new MovimentoEstoque();
+        estornoCicloZero.setTipoInsumo(TipoInsumo.MATERIAL);
+        estornoCicloZero.setInsumoId("mat1");
+        estornoCicloZero.setTipo(TipoMovimento.ESTORNO);
+        estornoCicloZero.setEtapaOrigem(StatusPedido.IMPRESSAO);
+        estornoCicloZero.setChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:ESTORNO:0");
+
+        when(movimentoRepository.findByPedidoId("ped1"))
+                .thenReturn(List.of(baixaCicloZero, estornoCicloZero));
+        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:1"))
+                .thenReturn(Optional.empty());
+        when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
+
+        service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
+
+        // o saldo é debitado outra vez
+        ArgumentCaptor<Material> materialSalvo = ArgumentCaptor.forClass(Material.class);
+        verify(materialRepository).save(materialSalvo.capture());
+        assertThat(materialSalvo.getValue().getSaldo()).isEqualByComparingTo("400");
+
+        // segunda BAIXA gravada no ciclo 1, distinta da BAIXA do ciclo 0 que segue no histórico
+        ArgumentCaptor<MovimentoEstoque> movimentoSalvo = ArgumentCaptor.forClass(MovimentoEstoque.class);
+        verify(movimentoRepository).save(movimentoSalvo.capture());
+        MovimentoEstoque segundaBaixa = movimentoSalvo.getValue();
+        assertThat(segundaBaixa.getTipo()).isEqualTo(TipoMovimento.BAIXA);
+        assertThat(segundaBaixa.getChaveIdempotencia()).isEqualTo("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:1");
+        assertThat(segundaBaixa.getChaveIdempotencia()).isNotEqualTo(baixaCicloZero.getChaveIdempotencia());
+        verify(movimentoRepository, never()).delete(any());
     }
 
     @Test
@@ -140,9 +175,10 @@ class EstoqueServiceTest {
         baixa.setQuantidade(new BigDecimal("100"));
         baixa.setCustoUnitario(new BigDecimal("0.10"));
         baixa.setCustoTotal(new BigDecimal("10.00"));
+        baixa.setChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0");
 
         when(movimentoRepository.findByPedidoId("ped1")).thenReturn(List.of(baixa));
-        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:ESTORNO"))
+        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:ESTORNO:0"))
                 .thenReturn(Optional.empty());
         when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
 
@@ -163,6 +199,28 @@ class EstoqueServiceTest {
         // nada é apagado: a baixa original permanece no histórico
         verify(movimentoRepository, never()).delete(any());
         verify(movimentoRepository, never()).deleteById(anyString());
+    }
+
+    @Test
+    void estornoRepetidoNaoDevolveEmDobro() {
+        // o ESTORNO usa o ciclo da BAIXA que ele estorna: repetir o estorno gera a mesma
+        // chave, que já existe, e nada é devolvido de novo
+        MovimentoEstoque baixa = new MovimentoEstoque();
+        baixa.setTipoInsumo(TipoInsumo.MATERIAL);
+        baixa.setInsumoId("mat1");
+        baixa.setTipo(TipoMovimento.BAIXA);
+        baixa.setEtapaOrigem(StatusPedido.IMPRESSAO);
+        baixa.setQuantidade(new BigDecimal("100"));
+        baixa.setChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0");
+
+        when(movimentoRepository.findByPedidoId("ped1")).thenReturn(List.of(baixa));
+        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:ESTORNO:0"))
+                .thenReturn(Optional.of(new MovimentoEstoque()));
+
+        service.estornarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
+
+        verify(materialRepository, never()).save(any());
+        verify(movimentoRepository, never()).save(any());
     }
 
     @Test
@@ -200,7 +258,7 @@ class EstoqueServiceTest {
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO),
                         item(TipoInsumo.MATERIAL, "emb1", "1", UnidadeMedida.UN, StatusPedido.FINALIZADO))));
-        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA"))
+        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0"))
                 .thenReturn(Optional.empty());
         when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
 
@@ -255,7 +313,7 @@ class EstoqueServiceTest {
         when(consumoPedidoRepository.findByPedidoId("ped1"))
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
-        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA"))
+        when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0"))
                 .thenReturn(Optional.empty());
         when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
 
