@@ -14,5 +14,6 @@ public class UserResponseDTO {
     private String telefone;
     private String role;
     private String equipeId;
+    private String funcaoVisual;
 
 }
