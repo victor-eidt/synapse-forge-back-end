@@ -59,7 +59,8 @@ public class UserService {
                 user.getRole() != null
                         ? user.getRole().name()
                         : null,
-                user.getEquipeId()
+                user.getEquipeId(),
+                user.getFuncaoVisual()
         );
     }
 
@@ -580,5 +581,40 @@ public class UserService {
         return repository.findByEquipeId(
                 equipeId
         );
+    }
+
+    // =========================================================
+    // ATUALIZAR FUNÇÃO VISUAL DO INTEGRANTE
+    // =========================================================
+
+    public User atualizarFuncaoVisual(
+            String usuarioId,
+            String funcaoVisual
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        if (funcaoVisual == null
+                || funcaoVisual.isBlank()) {
+
+            user.setFuncaoVisual(null);
+
+        } else {
+
+            user.setFuncaoVisual(
+                    funcaoVisual.trim()
+            );
+        }
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+        return repository.save(user);
     }
 }

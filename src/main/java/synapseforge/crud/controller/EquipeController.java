@@ -517,4 +517,81 @@ public class EquipeController {
 
         return ResponseEntity.noContent().build();
     }
+
+
+    // =========================================================
+    // ATUALIZAR FUNÇÃO VISUAL DO INTEGRANTE
+    // =========================================================
+
+    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @PutMapping("/minha/integrantes/{usuarioId}/funcao-visual")
+    public UserResponseDTO atualizarFuncaoVisual(
+            @PathVariable String usuarioId,
+            @RequestBody String funcaoVisual,
+            Authentication auth
+    ) {
+
+        String gerenteId =
+                (String) auth.getPrincipal();
+
+        User gerente =
+                userService.buscarPorId(gerenteId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Usuário não encontrado"
+                                )
+                        );
+
+        String equipeId =
+                gerente.getEquipeId();
+
+        /*
+         * GERENTE/ADMIN normalmente não possuem equipeId.
+         * Então buscamos a equipe que administram.
+         */
+        if (equipeId == null) {
+
+            equipeId =
+                    service.buscarPorGerenteId(gerenteId)
+                            .map(Equipe::getId)
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Você não possui uma equipe"
+                                    )
+                            );
+        }
+
+        User integrante =
+                userService.buscarPorId(usuarioId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Usuário não encontrado"
+                                )
+                        );
+
+        /*
+         * Garante que o usuário pertence
+         * à equipe que está sendo administrada.
+         */
+        if (
+                integrante.getEquipeId() == null
+                        || !integrante.getEquipeId()
+                        .equals(equipeId)
+        ) {
+
+            throw new RuntimeException(
+                    "O usuário não pertence à sua equipe"
+            );
+        }
+
+        User atualizado =
+                userService.atualizarFuncaoVisual(
+                        usuarioId,
+                        funcaoVisual
+                );
+
+        return userService.toResponseDTO(
+                atualizado
+        );
+    }
 }
