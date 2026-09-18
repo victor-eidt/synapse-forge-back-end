@@ -13,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import synapseforge.crud.DTO.Orcamento.CalcularOrcamentoRequestDTO;
 import synapseforge.crud.DTO.Orcamento.OrcamentoResponseDTO;
 import synapseforge.crud.service.OrcamentoService;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -28,17 +29,20 @@ public class OrcamentoController {
     private final OrcamentoService service;
     private final GridFsTemplate gridFsTemplate;
 
+    @PreAuthorize("hasRole('GERENTE')")
     @PostMapping("/calcular")
     public OrcamentoResponseDTO calcular(@RequestBody @Valid CalcularOrcamentoRequestDTO dto) {
         return service.calcular(dto);
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public OrcamentoResponseDTO salvar(@RequestBody @Valid CalcularOrcamentoRequestDTO dto, Authentication auth) {
         return service.salvar(dto, (String) auth.getPrincipal());
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public OrcamentoResponseDTO salvarComArquivos(
@@ -82,21 +86,25 @@ public class OrcamentoController {
         return service.salvar(dto, (String) auth.getPrincipal(), objeto3DFileId, imagensReferenciaFileIds);
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @GetMapping
     public List<OrcamentoResponseDTO> listar(Authentication auth) {
         return service.listar((String) auth.getPrincipal());
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @GetMapping("/{id}")
     public OrcamentoResponseDTO buscarPorId(@PathVariable String id, Authentication auth) {
         return service.buscarPorId(id, (String) auth.getPrincipal());
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @PatchMapping("/{id}/aprovar")
     public OrcamentoResponseDTO aprovar(@PathVariable String id, Authentication auth) {
         return service.aprovar(id, (String) auth.getPrincipal());
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @PatchMapping("/{id}/rejeitar")
     public OrcamentoResponseDTO rejeitar(@PathVariable String id, Authentication auth) {
         return service.rejeitar(id, (String) auth.getPrincipal());

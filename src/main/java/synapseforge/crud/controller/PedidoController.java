@@ -826,9 +826,7 @@ public class PedidoController {
     // GERAR ORDEM DE SERVIÇO
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')"
-    )
+    @PreAuthorize("hasRole('GERENTE')")
     @GetMapping("/{id}/ordem-servico")
     public ResponseEntity<byte[]> gerarOrdemServico(
             @PathVariable String id,
