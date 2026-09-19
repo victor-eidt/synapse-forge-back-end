@@ -37,6 +37,13 @@ public class GlobalExceptionHandler {
         return ex.getMessage();
     }
 
+    @ExceptionHandler(EstoqueInsuficienteException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public String handleEstoqueInsuficienteException(EstoqueInsuficienteException ex) {
+        logger.error("Unprocessable Entity - EstoqueInsuficienteException: {}", ex.getMessage(), ex);
+        return ex.getMessage();
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public String handleGeneralException(Exception ex) {
