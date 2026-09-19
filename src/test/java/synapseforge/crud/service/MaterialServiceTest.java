@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import synapseforge.crud.DTO.Material.MaterialRequestDTO;
 import synapseforge.crud.DTO.Material.MaterialResponseDTO;
 import synapseforge.crud.infrastructure.entity.Material;
+import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import synapseforge.crud.infrastructure.repository.MaterialRepository;
 
 import java.math.BigDecimal;
@@ -51,6 +52,53 @@ class MaterialServiceTest {
         assertEquals("PLA", result.getNome());
         assertTrue(result.getAtivo());
         verify(repository).save(any(Material.class));
+    }
+
+    @Test
+    void criarComEstoqueMinimoInformadoPersisteOValorESaldoNasceZerado() {
+        MaterialRequestDTO dto = new MaterialRequestDTO();
+        dto.setNome("PLA");
+        dto.setTipo("Filamento");
+        dto.setDensidadeGcm3(1.24);
+        dto.setPrecoPorGrama(new BigDecimal("0.05"));
+        dto.setEstoqueMinimo(new BigDecimal("200"));
+
+        when(repository.save(any(Material.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        MaterialResponseDTO result = service.criar(dto);
+
+        assertEquals(new BigDecimal("200"), result.getEstoqueMinimo());
+        assertEquals(BigDecimal.ZERO, result.getSaldo());
+        assertEquals(UnidadeMedida.G, result.getUnidade());
+    }
+
+    @Test
+    void atualizarComEstoqueMinimoNuloPreservaOValorENuncaAlteraOSaldo() {
+        Material material = new Material();
+        material.setId("m-1");
+        material.setNome("PLA");
+        material.setTipo("Filamento");
+        material.setDensidadeGcm3(1.24);
+        material.setPrecoPorGrama(new BigDecimal("0.05"));
+        material.setAtivo(true);
+        material.setUnidade(UnidadeMedida.G);
+        material.setSaldo(new BigDecimal("350"));
+        material.setEstoqueMinimo(new BigDecimal("200"));
+
+        MaterialRequestDTO dto = new MaterialRequestDTO();
+        dto.setNome("PLA Premium");
+        dto.setTipo("Filamento");
+        dto.setDensidadeGcm3(1.24);
+        dto.setPrecoPorGrama(new BigDecimal("0.07"));
+
+        when(repository.findById("m-1")).thenReturn(Optional.of(material));
+        when(repository.save(material)).thenReturn(material);
+
+        MaterialResponseDTO result = service.atualizar("m-1", dto);
+
+        assertEquals("PLA Premium", result.getNome());
+        assertEquals(new BigDecimal("200"), result.getEstoqueMinimo());
+        assertEquals(new BigDecimal("350"), result.getSaldo());
     }
 
     @Test
