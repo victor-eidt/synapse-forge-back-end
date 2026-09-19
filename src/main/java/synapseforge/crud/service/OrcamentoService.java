@@ -1,7 +1,13 @@
 package synapseforge.crud.service;
 
 import lombok.RequiredArgsConstructor;
+import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.gridfs.GridFsTemplate;
+import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.springframework.stereotype.Service;
+import com.mongodb.client.gridfs.model.GridFSFile;
 import synapseforge.crud.DTO.Orcamento.CalcularOrcamentoRequestDTO;
 import synapseforge.crud.DTO.Orcamento.OrcamentoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Material;
@@ -16,6 +22,9 @@ import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 @Service
@@ -27,6 +36,7 @@ public class OrcamentoService {
     private final OrcamentoRepository repository;
     private final MaterialRepository materialRepository;
     private final PedidoRepository pedidoRepository;
+    private final GridFsTemplate gridFsTemplate;
 
     /**
      * Calcula o orçamento sem persistir (útil para preview no front).
@@ -56,7 +66,10 @@ public class OrcamentoService {
                 resultado.custoMaoDeObra(),
                 resultado.custoTotal(),
                 resultado.precoFinal(),
-                null
+                null,
+                null,
+                List.of(),
+                List.of()
         );
     }
 
@@ -239,8 +252,51 @@ public class OrcamentoService {
                 orcamento.getCustoMaoDeObra(),
                 orcamento.getCustoTotal(),
                 orcamento.getPrecoFinal(),
-                orcamento.getCriadoEm()
+                orcamento.getCriadoEm(),
+                orcamento.getObjeto3DFileId(),
+                imagensReferenciaBase64(orcamento.getImagensReferenciaFileIds()),
+                orcamento.getImagensReferenciaFileIds() == null
+                        ? List.of()
+                        : List.copyOf(orcamento.getImagensReferenciaFileIds())
         );
+    }
+
+    private List<String> imagensReferenciaBase64(List<String> fileIds) {
+        if (fileIds == null) {
+            return List.of();
+        }
+
+        List<String> imagens = new ArrayList<>();
+        for (String fileId : fileIds) {
+            if (!ObjectId.isValid(fileId)) {
+                imagens.add(null);
+                continue;
+            }
+
+            try {
+                GridFSFile file = gridFsTemplate.findOne(
+                        Query.query(Criteria.where("_id").is(new ObjectId(fileId)))
+                );
+                if (file == null) {
+                    imagens.add(null);
+                    continue;
+                }
+
+                GridFsResource resource = gridFsTemplate.getResource(file);
+                byte[] bytes;
+                try (var inputStream = resource.getInputStream()) {
+                    bytes = inputStream.readAllBytes();
+                }
+
+                imagens.add(
+                        "data:" + ArquivoUtils.contentType(file) + ";base64,"
+                                + Base64.getEncoder().encodeToString(bytes)
+                );
+            } catch (IOException e) {
+                imagens.add(null);
+            }
+        }
+        return imagens;
     }
 
     private Orcamento buscarDoUsuario(String id, String usuarioId) {

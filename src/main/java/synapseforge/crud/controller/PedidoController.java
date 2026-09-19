@@ -20,6 +20,7 @@ import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.service.PedidoService;
 import synapseforge.crud.service.PdfService;
+import synapseforge.crud.service.ArquivoUtils;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -785,48 +786,12 @@ public class PedidoController {
                 );
 
 
-        String contentType =
-                "application/octet-stream";
-
-        if (
-                gridFsFile.getMetadata() != null
-        ) {
-
-            if (
-                    gridFsFile.getMetadata()
-                            .getString(
-                                    "contentType"
-                            ) != null
-            ) {
-
-                contentType =
-                        gridFsFile.getMetadata()
-                                .getString(
-                                        "contentType"
-                                );
-
-            } else if (
-                    gridFsFile.getMetadata()
-                            .getString(
-                                    "_contentType"
-                            ) != null
-            ) {
-
-                contentType =
-                        gridFsFile.getMetadata()
-                                .getString(
-                                        "_contentType"
-                                );
-            }
-        }
-
-
         HttpHeaders headers =
                 new HttpHeaders();
 
         headers.setContentType(
                 MediaType.parseMediaType(
-                        contentType
+                        ArquivoUtils.contentType(gridFsFile)
                 )
         );
 
