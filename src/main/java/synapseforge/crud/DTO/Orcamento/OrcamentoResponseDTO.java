@@ -6,6 +6,7 @@ import lombok.Getter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.util.List;
 import synapseforge.crud.infrastructure.entity.StatusOrcamento;
 
 @Getter
@@ -38,4 +39,8 @@ public class OrcamentoResponseDTO {
     private BigDecimal precoFinal;
 
     private LocalDateTime criadoEm;
+
+    private String objeto3DFileId;
+    private List<String> imagensReferenciaUrls;
+    private List<String> imagensReferenciaIds;
 }

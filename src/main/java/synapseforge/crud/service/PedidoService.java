@@ -149,29 +149,6 @@ public class PedidoService {
                     byte[] bytes =
                             is.readAllBytes();
 
-                    String contentType =
-                            "application/octet-stream";
-
-                    if (gridFsFile.getMetadata() != null) {
-
-                        if (gridFsFile.getMetadata()
-                                .getString("contentType") != null) {
-
-                            contentType =
-                                    gridFsFile.getMetadata()
-                                            .getString("contentType");
-
-                        } else if (
-                                gridFsFile.getMetadata()
-                                        .getString("_contentType") != null
-                        ) {
-
-                            contentType =
-                                    gridFsFile.getMetadata()
-                                            .getString("_contentType");
-                        }
-                    }
-
                     String b64 =
                             java.util.Base64
                                     .getEncoder()
@@ -179,7 +156,7 @@ public class PedidoService {
 
                     imagensBase64.add(
                             "data:"
-                                    + contentType
+                                    + ArquivoUtils.contentType(gridFsFile)
                                     + ";base64,"
                                     + b64
                     );
