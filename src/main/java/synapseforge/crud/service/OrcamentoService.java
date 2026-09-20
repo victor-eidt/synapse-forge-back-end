@@ -136,12 +136,12 @@ public class OrcamentoService {
     public OrcamentoResponseDTO buscarPorId(String id) {
         Orcamento orcamento = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Orçamento não encontrado"));
-        return toResponseDTO(orcamento, nomeMaterial(orcamento.getMaterialId()));
+        return toResponseDTO(orcamento, nomeMaterial(orcamento.getMaterialId()), true);
     }
 
     public OrcamentoResponseDTO buscarPorId(String id, String usuarioId) {
         Orcamento orcamento = buscarDoUsuario(id, usuarioId);
-        return toResponseDTO(orcamento, nomeMaterial(orcamento.getMaterialId()));
+        return toResponseDTO(orcamento, nomeMaterial(orcamento.getMaterialId()), true);
     }
 
     public OrcamentoResponseDTO aprovar(String id, String usuarioId) {
@@ -231,6 +231,18 @@ public class OrcamentoService {
     }
 
     private OrcamentoResponseDTO toResponseDTO(Orcamento orcamento, String nomeMaterial) {
+        return toResponseDTO(orcamento, nomeMaterial, false);
+    }
+
+    /**
+     * As imagens de referencia so sao codificadas em base64 na leitura de um orcamento
+     * unico: embutir todas elas na listagem carregaria o GridFS inteiro em memoria.
+     */
+    private OrcamentoResponseDTO toResponseDTO(
+            Orcamento orcamento,
+            String nomeMaterial,
+            boolean incluirImagens
+    ) {
         return new OrcamentoResponseDTO(
                 orcamento.getId(),
                 orcamento.getMaterialId(),
@@ -254,7 +266,9 @@ public class OrcamentoService {
                 orcamento.getPrecoFinal(),
                 orcamento.getCriadoEm(),
                 orcamento.getObjeto3DFileId(),
-                imagensReferenciaBase64(orcamento.getImagensReferenciaFileIds()),
+                incluirImagens
+                        ? imagensReferenciaBase64(orcamento.getImagensReferenciaFileIds())
+                        : List.of(),
                 orcamento.getImagensReferenciaFileIds() == null
                         ? List.of()
                         : List.copyOf(orcamento.getImagensReferenciaFileIds())

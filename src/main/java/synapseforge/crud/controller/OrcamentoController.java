@@ -120,9 +120,9 @@ public class OrcamentoController {
             Authentication auth
     ) throws IOException {
         OrcamentoResponseDTO orcamento = buscarPorId(id, auth);
-        if (orcamento.getImagensReferenciaIds().stream()
-                .noneMatch(imagemId::equals)
-                || !ObjectId.isValid(imagemId)) {
+        if (!ObjectId.isValid(imagemId)
+                || orcamento.getImagensReferenciaIds().stream()
+                        .noneMatch(imagemId::equals)) {
             return ResponseEntity.notFound().build();
         }
 

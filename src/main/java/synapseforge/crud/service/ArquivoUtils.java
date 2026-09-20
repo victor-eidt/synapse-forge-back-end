@@ -34,13 +34,15 @@ public final class ArquivoUtils {
                             .orElse(null);
         };
 
-        if (inferredContentType != null) {
-            return inferredContentType;
+        // O metadata e gravado no upload; o nome do arquivo vem do cliente, entao so
+        // serve de fallback.
+        if (metadataContentType != null) {
+            return metadataContentType;
         }
 
-        return metadataContentType == null
+        return inferredContentType == null
                 ? MediaType.APPLICATION_OCTET_STREAM_VALUE
-                : metadataContentType;
+                : inferredContentType;
     }
 
     private static String firstNonBlank(String first, String second) {
