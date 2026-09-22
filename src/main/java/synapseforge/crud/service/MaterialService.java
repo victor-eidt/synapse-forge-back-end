@@ -5,8 +5,10 @@ import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.Material.MaterialRequestDTO;
 import synapseforge.crud.DTO.Material.MaterialResponseDTO;
 import synapseforge.crud.infrastructure.entity.Material;
+import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import synapseforge.crud.infrastructure.repository.MaterialRepository;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -18,6 +20,14 @@ public class MaterialService {
     public MaterialResponseDTO criar(MaterialRequestDTO dto) {
         Material material = new Material();
         aplicarDados(material, dto);
+        if (material.getUnidade() == null) {
+            material.setUnidade(UnidadeMedida.G);
+        }
+        if (material.getEstoqueMinimo() == null) {
+            material.setEstoqueMinimo(BigDecimal.ZERO);
+        }
+        // saldo sempre nasce zerado; entra no estoque apenas por movimentação
+        material.setSaldo(BigDecimal.ZERO);
         return toResponseDTO(repository.save(material));
     }
 
@@ -54,6 +64,12 @@ public class MaterialService {
         material.setDensidadeGcm3(dto.getDensidadeGcm3());
         material.setPrecoPorGrama(dto.getPrecoPorGrama());
         material.setAtivo(dto.getAtivo() == null ? Boolean.TRUE : dto.getAtivo());
+        if (dto.getUnidade() != null) {
+            material.setUnidade(dto.getUnidade());
+        }
+        if (dto.getEstoqueMinimo() != null) {
+            material.setEstoqueMinimo(dto.getEstoqueMinimo());
+        }
     }
 
     private MaterialResponseDTO toResponseDTO(Material material) {
@@ -63,7 +79,10 @@ public class MaterialService {
                 material.getTipo(),
                 material.getDensidadeGcm3(),
                 material.getPrecoPorGrama(),
-                material.getAtivo()
+                material.getAtivo(),
+                material.getUnidade(),
+                material.getSaldo(),
+                material.getEstoqueMinimo()
         );
     }
 }
