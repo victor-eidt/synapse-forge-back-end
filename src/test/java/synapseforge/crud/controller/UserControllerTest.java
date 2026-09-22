@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.User;
@@ -25,6 +26,12 @@ class UserControllerTest {
 
     @InjectMocks
     private UserController controller;
+
+    private Authentication auth() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn("gerente-1");
+        return auth;
+    }
 
     @Test
     void criarDeveRetornarDtoConvertido() {
@@ -52,11 +59,12 @@ class UserControllerTest {
         user.setNome("Ana");
         UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN", null, null);
 
-        when(service.listar()).thenReturn(List.of(user));
+        when(service.listar("gerente-1")).thenReturn(List.of(user));
         when(service.toResponseDTO(user)).thenReturn(response);
 
-        assertEquals(1, controller.listar().size());
-        assertEquals("Ana", controller.listar().get(0).getNome());
+        Authentication auth = auth();
+        assertEquals(1, controller.listar(auth).size());
+        assertEquals("Ana", controller.listar(auth).get(0).getNome());
     }
 
     @Test
@@ -118,11 +126,12 @@ class UserControllerTest {
         user.setNome("Ana");
         UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN", null, null);
 
-        when(service.buscarPorNome("Ana")).thenReturn(List.of(user));
+        when(service.buscarPorNome("gerente-1", "Ana")).thenReturn(List.of(user));
         when(service.toResponseDTO(user)).thenReturn(response);
 
-        assertEquals(1, controller.buscarPorNome("Ana").size());
-        assertEquals("Ana", controller.buscarPorNome("Ana").get(0).getNome());
+        Authentication auth = auth();
+        assertEquals(1, controller.buscarPorNome("Ana", auth).size());
+        assertEquals("Ana", controller.buscarPorNome("Ana", auth).get(0).getNome());
     }
 
     @Test

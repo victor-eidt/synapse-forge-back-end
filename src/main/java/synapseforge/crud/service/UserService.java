@@ -23,6 +23,7 @@ public class UserService {
     private final UserRepository repository;
     private final BCryptPasswordEncoder encoder;
     private final EmailService emailService;
+    private final EquipeContexto equipeContexto;
 
 
     // =========================================================
@@ -92,10 +93,16 @@ public class UserService {
     // =========================================================
     // LISTAR
     // =========================================================
+    //
+    // Somente usuários da equipe de quem consulta (sem equipe -> vazio).
+    // A listagem da plataforma inteira fica no AdminService.
+    //
 
-    public List<User> listar() {
+    public List<User> listar(String usuarioId) {
 
-        return repository.findAll();
+        return equipeContexto.equipeDe(usuarioId)
+                .map(repository::findByEquipeId)
+                .orElse(List.of());
     }
 
 
@@ -206,6 +213,7 @@ public class UserService {
     // =========================================================
 
     public List<User> buscarPorNome(
+            String usuarioId,
             String nome
     ) {
 
@@ -219,9 +227,14 @@ public class UserService {
             );
         }
 
-        return repository.findByNomeIgnoreCaseContaining(
-                nome.trim()
-        );
+        return equipeContexto.equipeDe(usuarioId)
+                .map(equipeId ->
+                        repository.findByEquipeIdAndNomeIgnoreCaseContaining(
+                                equipeId,
+                                nome.trim()
+                        )
+                )
+                .orElse(List.of());
     }
 
 
@@ -378,15 +391,20 @@ public class UserService {
     // =========================================================
     // LISTAGEM DE CLIENTES PARA PEDIDOS
     // =========================================================
+    //
+    // Somente clientes da equipe de quem consulta (sem equipe -> vazio).
+    //
 
-    public List<User> listarClientes() {
+    public List<User> listarClientes(String usuarioId) {
 
-        return repository.findAll()
-                .stream()
-                .filter(user ->
-                        user.getRole() == Role.CLIENTE
+        return equipeContexto.equipeDe(usuarioId)
+                .map(equipeId ->
+                        repository.findByEquipeIdAndRole(
+                                equipeId,
+                                Role.CLIENTE
+                        )
                 )
-                .toList();
+                .orElse(List.of());
     }
 
 

@@ -26,13 +26,16 @@ class UserServiceUnitTest {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private EquipeContexto equipeContexto;
+
     private BCryptPasswordEncoder encoder;
     private UserService userService;
 
     @BeforeEach
     void setup() {
         encoder = new BCryptPasswordEncoder();
-        userService = new UserService(repository, encoder, emailService);
+        userService = new UserService(repository, encoder, emailService, equipeContexto);
     }
 
     @Test
@@ -77,8 +80,9 @@ class UserServiceUnitTest {
 
     @Test
     void buscarPorNomeReturnsListWhenValid() {
-        when(repository.findByNomeIgnoreCaseContaining("ana")).thenReturn(List.of(new User()));
-        List<User> res = userService.buscarPorNome("ana");
+        when(equipeContexto.equipeDe("u-1")).thenReturn(Optional.of("eq-1"));
+        when(repository.findByEquipeIdAndNomeIgnoreCaseContaining("eq-1", "ana")).thenReturn(List.of(new User()));
+        List<User> res = userService.buscarPorNome("u-1", "ana");
         assertFalse(res.isEmpty());
     }
 }
