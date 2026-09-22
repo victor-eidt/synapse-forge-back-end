@@ -31,13 +31,16 @@ class UserServiceTest {
     @Mock
     private EmailService emailService;
 
+    @Mock
+    private EquipeContexto equipeContexto;
+
     private BCryptPasswordEncoder encoder;
     private UserService service;
 
     @BeforeEach
     void setUp() {
         encoder = new BCryptPasswordEncoder();
-        service = new UserService(repository, encoder, emailService);
+        service = new UserService(repository, encoder, emailService, equipeContexto);
     }
 
     @Test
@@ -93,15 +96,54 @@ class UserServiceTest {
     }
 
     @Test
-    void buscarPorNomeDeveRetornarListaQuandoNomeValido() {
+    void buscarPorNomeDeveRetornarListaDaEquipeQuandoNomeValido() {
         User user = new User();
         user.setNome("Ana");
-        when(repository.findByNomeIgnoreCaseContaining("Ana")).thenReturn(List.of(user));
+        when(equipeContexto.equipeDe("u-1")).thenReturn(Optional.of("eq-1"));
+        when(repository.findByEquipeIdAndNomeIgnoreCaseContaining("eq-1", "Ana")).thenReturn(List.of(user));
 
-        List<User> result = service.buscarPorNome("Ana");
+        List<User> result = service.buscarPorNome("u-1", "Ana");
 
         assertEquals(1, result.size());
         assertEquals("Ana", result.get(0).getNome());
+        verify(repository, never()).findByNomeIgnoreCaseContaining(anyString());
+    }
+
+    // =========================================================
+    // LISTAGENS POR EQUIPE (SYN-100)
+    // =========================================================
+
+    @Test
+    void listarTrazSoUsuariosDaEquipe() {
+        User colega = new User();
+        colega.setEquipeId("eq-1");
+        when(equipeContexto.equipeDe("u-1")).thenReturn(Optional.of("eq-1"));
+        when(repository.findByEquipeId("eq-1")).thenReturn(List.of(colega));
+
+        assertEquals(List.of(colega), service.listar("u-1"));
+        verify(repository, never()).findAll();
+    }
+
+    @Test
+    void listarClientesTrazSoClientesDaEquipe() {
+        User cliente = new User();
+        cliente.setRole(Role.CLIENTE);
+        cliente.setEquipeId("eq-1");
+        when(equipeContexto.equipeDe("u-1")).thenReturn(Optional.of("eq-1"));
+        when(repository.findByEquipeIdAndRole("eq-1", Role.CLIENTE)).thenReturn(List.of(cliente));
+
+        assertEquals(List.of(cliente), service.listarClientes("u-1"));
+        verify(repository, never()).findAll();
+    }
+
+    @Test
+    void usuarioSemEquipeNaoListaNinguem() {
+        when(equipeContexto.equipeDe("u-1")).thenReturn(Optional.empty());
+
+        assertTrue(service.listar("u-1").isEmpty());
+        assertTrue(service.listarClientes("u-1").isEmpty());
+        assertTrue(service.buscarPorNome("u-1", "Ana").isEmpty());
+        verifyNoInteractions(repository);
     }
 
     @Test

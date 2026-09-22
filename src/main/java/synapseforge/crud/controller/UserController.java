@@ -46,9 +46,11 @@ public class UserController {
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @GetMapping
-    public List<UserResponseDTO> listar() {
+    public List<UserResponseDTO> listar(
+            Authentication auth
+    ) {
 
-        return service.listar()
+        return service.listar((String) auth.getPrincipal())
                 .stream()
                 .map(service::toResponseDTO)
                 .toList();
@@ -61,9 +63,11 @@ public class UserController {
 
     @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
     @GetMapping("/clientes")
-    public List<UserResponseDTO> listarClientes() {
+    public List<UserResponseDTO> listarClientes(
+            Authentication auth
+    ) {
 
-        return service.listarClientes()
+        return service.listarClientes((String) auth.getPrincipal())
                 .stream()
                 .map(service::toResponseDTO)
                 .toList();
@@ -213,10 +217,11 @@ public class UserController {
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @GetMapping("/search")
     public List<UserResponseDTO> buscarPorNome(
-            @RequestParam String nome
+            @RequestParam String nome,
+            Authentication auth
     ) {
 
-        return service.buscarPorNome(nome)
+        return service.buscarPorNome((String) auth.getPrincipal(), nome)
                 .stream()
                 .map(service::toResponseDTO)
                 .toList();
