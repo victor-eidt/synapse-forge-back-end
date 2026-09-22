@@ -15,6 +15,7 @@ import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 
+// Ordens de pintura são da equipe; pedido e cor referenciados precisam ser da mesma equipe.
 @Service
 @RequiredArgsConstructor
 public class OrdemPinturaService {
@@ -23,18 +24,23 @@ public class OrdemPinturaService {
     private final PedidoRepository pedidoRepository;
     private final CorRepository corRepository;
     private final PedidoService pedidoService;
+    private final EquipeContexto equipeContexto;
 
     public List<OrdemPinturaResponseDTO> listar(String usuarioId) {
-        return repository.findByUsuarioIdOrderByCriadoEmDesc(usuarioId)
+        return equipeContexto.equipeDe(usuarioId)
+                .map(repository::findByEquipeIdOrderByCriadoEmDesc)
+                .orElse(List.of())
                 .stream()
                 .map(this::toResponseDTO)
                 .toList();
     }
 
     public OrdemPinturaResponseDTO criar(OrdemPinturaRequestDTO dto, String usuarioId) {
-        validarRelacionamentos(dto, usuarioId);
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        validarRelacionamentos(dto, equipeId);
 
         OrdemPintura ordem = new OrdemPintura();
+        ordem.setEquipeId(equipeId);
         ordem.setUsuarioId(usuarioId);
         ordem.setPedidoId(dto.getPedidoId());
         ordem.setCorId(dto.getCorId());
@@ -52,7 +58,7 @@ public class OrdemPinturaService {
             EtapaOrdemPintura etapa,
             String usuarioId
     ) {
-        OrdemPintura ordem = buscarDoUsuario(id, usuarioId);
+        OrdemPintura ordem = buscarDaEquipe(id, equipeContexto.equipeObrigatoria(usuarioId));
         ordem.setEtapa(etapa);
         ordem.setAtualizadoEm(LocalDateTime.now());
         return toResponseDTO(repository.save(ordem));
@@ -63,8 +69,9 @@ public class OrdemPinturaService {
             OrdemPinturaRequestDTO dto,
             String usuarioId
     ) {
-        validarRelacionamentos(dto, usuarioId);
-        OrdemPintura ordem = buscarDoUsuario(id, usuarioId);
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        OrdemPintura ordem = buscarDaEquipe(id, equipeId);
+        validarRelacionamentos(dto, equipeId);
         ordem.setPedidoId(dto.getPedidoId());
         ordem.setCorId(dto.getCorId());
         ordem.setTecnico(dto.getTecnico().trim());
@@ -75,30 +82,28 @@ public class OrdemPinturaService {
     }
 
     public void deletar(String id, String usuarioId) {
-        OrdemPintura ordem = buscarDoUsuario(id, usuarioId);
+        OrdemPintura ordem = buscarDaEquipe(id, equipeContexto.equipeObrigatoria(usuarioId));
         repository.delete(ordem);
     }
 
-    private OrdemPintura buscarDoUsuario(String id, String usuarioId) {
-        return repository.findById(id)
-                .filter(ordem -> usuarioId.equals(ordem.getUsuarioId()))
+    private OrdemPintura buscarDaEquipe(String id, String equipeId) {
+        return repository.findByIdAndEquipeId(id, equipeId)
                 .orElseThrow(() -> new RuntimeException("Ordem de pintura nao encontrada"));
     }
 
-    private void validarRelacionamentos(OrdemPinturaRequestDTO dto, String usuarioId) {
-        pedidoRepository.findById(dto.getPedidoId())
-                .filter(pedido -> usuarioId.equals(pedido.getUsuarioId()))
+    private void validarRelacionamentos(OrdemPinturaRequestDTO dto, String equipeId) {
+        pedidoRepository.findByIdAndEquipeId(dto.getPedidoId(), equipeId)
                 .orElseThrow(() -> new RuntimeException("Pedido nao encontrado"));
 
-        corRepository.findById(dto.getCorId())
-                .filter(cor -> usuarioId.equals(cor.getUsuarioId()))
+        corRepository.findByIdAndEquipeId(dto.getCorId(), equipeId)
                 .orElseThrow(() -> new RuntimeException("Cor nao encontrada"));
 
     }
 
     private OrdemPinturaResponseDTO toResponseDTO(OrdemPintura ordem) {
-        Pedido pedido = pedidoRepository.findById(ordem.getPedidoId()).orElse(null);
-        Cor cor = corRepository.findById(ordem.getCorId()).orElse(null);
+        // pedido e cor lidos pela equipe da ordem: nunca exibe dados de outra oficina
+        Pedido pedido = pedidoRepository.findByIdAndEquipeId(ordem.getPedidoId(), ordem.getEquipeId()).orElse(null);
+        Cor cor = corRepository.findByIdAndEquipeId(ordem.getCorId(), ordem.getEquipeId()).orElse(null);
 
         List<String> referencias = pedido == null
                 ? List.of()

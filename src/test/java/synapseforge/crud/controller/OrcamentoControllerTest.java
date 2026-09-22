@@ -35,9 +35,9 @@ class OrcamentoControllerTest {
         CalcularOrcamentoRequestDTO dto = new CalcularOrcamentoRequestDTO();
         OrcamentoResponseDTO response = mock(OrcamentoResponseDTO.class);
         when(response.getNomeMaterial()).thenReturn("PLA");
-        when(service.calcular(dto)).thenReturn(response);
+        when(service.calcular(dto, "user-1")).thenReturn(response);
 
-        assertEquals("PLA", controller.calcular(dto).getNomeMaterial());
+        assertEquals("PLA", controller.calcular(dto, auth()).getNomeMaterial());
     }
 
     @Test

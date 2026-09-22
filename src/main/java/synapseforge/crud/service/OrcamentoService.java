@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
+// Orçamentos são da equipe (o acesso por perfil GERENTE fica no controller).
 @Service
 @RequiredArgsConstructor
 public class OrcamentoService {
@@ -37,12 +38,18 @@ public class OrcamentoService {
     private final MaterialRepository materialRepository;
     private final PedidoRepository pedidoRepository;
     private final GridFsTemplate gridFsTemplate;
+    private final EquipeContexto equipeContexto;
 
     /**
      * Calcula o orçamento sem persistir (útil para preview no front).
+     * O material precisa ser da equipe do usuário.
      */
-    public OrcamentoResponseDTO calcular(CalcularOrcamentoRequestDTO dto) {
-        Material material = buscarMaterialAtivo(dto.getMaterialId());
+    public OrcamentoResponseDTO calcular(CalcularOrcamentoRequestDTO dto, String usuarioId) {
+        return calcularNaEquipe(dto, equipeContexto.equipeObrigatoria(usuarioId));
+    }
+
+    private OrcamentoResponseDTO calcularNaEquipe(CalcularOrcamentoRequestDTO dto, String equipeId) {
+        Material material = buscarMaterialAtivo(dto.getMaterialId(), equipeId);
         ResultadoCalculo resultado = aplicarFormula(material, dto);
 
         return new OrcamentoResponseDTO(
@@ -74,12 +81,8 @@ public class OrcamentoService {
     }
 
     /**
-     * Calcula e persiste o orçamento.
+     * Calcula e persiste o orçamento na equipe do usuário.
      */
-    public OrcamentoResponseDTO salvar(CalcularOrcamentoRequestDTO dto) {
-        return salvar(dto, null);
-    }
-
     public OrcamentoResponseDTO salvar(CalcularOrcamentoRequestDTO dto, String usuarioId) {
         return salvar(dto, usuarioId, null, List.of());
     }
@@ -90,9 +93,11 @@ public class OrcamentoService {
             String objeto3DFileId,
             List<String> imagensReferenciaFileIds
     ) {
-        OrcamentoResponseDTO calculado = calcular(dto);
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        OrcamentoResponseDTO calculado = calcularNaEquipe(dto, equipeId);
 
         Orcamento orcamento = new Orcamento();
+        orcamento.setEquipeId(equipeId);
         orcamento.setMaterialId(calculado.getMaterialId());
         orcamento.setUsuarioId(usuarioId);
         orcamento.setCliente(calculado.getCliente());
@@ -121,36 +126,32 @@ public class OrcamentoService {
         return toResponseDTO(salvo, calculado.getNomeMaterial());
     }
 
-    public List<OrcamentoResponseDTO> listar() {
-        return repository.findAllByOrderByCriadoEmDesc().stream()
-                .map(orcamento -> toResponseDTO(orcamento, nomeMaterial(orcamento.getMaterialId())))
-                .toList();
-    }
-
     public List<OrcamentoResponseDTO> listar(String usuarioId) {
-        return repository.findByUsuarioIdOrderByCriadoEmDesc(usuarioId).stream()
-                .map(orcamento -> toResponseDTO(orcamento, nomeMaterial(orcamento.getMaterialId())))
+        return equipeContexto.equipeDe(usuarioId)
+                .map(repository::findByEquipeIdOrderByCriadoEmDesc)
+                .orElse(List.of())
+                .stream()
+                .map(orcamento -> toResponseDTO(orcamento, nomeMaterial(orcamento)))
                 .toList();
-    }
-
-    public OrcamentoResponseDTO buscarPorId(String id) {
-        Orcamento orcamento = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Orçamento não encontrado"));
-        return toResponseDTO(orcamento, nomeMaterial(orcamento.getMaterialId()), true);
     }
 
     public OrcamentoResponseDTO buscarPorId(String id, String usuarioId) {
-        Orcamento orcamento = buscarDoUsuario(id, usuarioId);
-        return toResponseDTO(orcamento, nomeMaterial(orcamento.getMaterialId()), true);
+        // leitura de um registro: sem equipe, simplesmente não existe
+        Orcamento orcamento = equipeContexto.equipeDe(usuarioId)
+                .flatMap(equipeId -> repository.findByIdAndEquipeId(id, equipeId))
+                .orElseThrow(() -> new RuntimeException("Orcamento nao encontrado"));
+        return toResponseDTO(orcamento, nomeMaterial(orcamento), true);
     }
 
     public OrcamentoResponseDTO aprovar(String id, String usuarioId) {
-        Orcamento orcamento = buscarDoUsuario(id, usuarioId);
+        Orcamento orcamento = buscarDaEquipe(id, usuarioId);
         if (status(orcamento) != StatusOrcamento.PENDENTE) {
             throw new IllegalStateException("Orcamento ja foi decidido");
         }
 
+        // o pedido nasce na mesma equipe do orçamento aprovado
         Pedido pedido = new Pedido();
+        pedido.setEquipeId(orcamento.getEquipeId());
         pedido.setUsuarioId(usuarioId);
         pedido.setCliente(orcamento.getCliente());
         pedido.setProjeto(orcamento.getProjeto());
@@ -180,16 +181,16 @@ public class OrcamentoService {
         Pedido pedidoSalvo = pedidoRepository.save(pedido);
         orcamento.setStatus(StatusOrcamento.APROVADO);
         orcamento.setPedidoId(pedidoSalvo.getId());
-        return toResponseDTO(repository.save(orcamento), nomeMaterial(orcamento.getMaterialId()));
+        return toResponseDTO(repository.save(orcamento), nomeMaterial(orcamento));
     }
 
     public OrcamentoResponseDTO rejeitar(String id, String usuarioId) {
-        Orcamento orcamento = buscarDoUsuario(id, usuarioId);
+        Orcamento orcamento = buscarDaEquipe(id, usuarioId);
         if (status(orcamento) != StatusOrcamento.PENDENTE) {
             throw new IllegalStateException("Orcamento ja foi decidido");
         }
         orcamento.setStatus(StatusOrcamento.REJEITADO);
-        return toResponseDTO(repository.save(orcamento), nomeMaterial(orcamento.getMaterialId()));
+        return toResponseDTO(repository.save(orcamento), nomeMaterial(orcamento));
     }
 
     private ResultadoCalculo aplicarFormula(Material material, CalcularOrcamentoRequestDTO dto) {
@@ -211,8 +212,8 @@ public class OrcamentoService {
         );
     }
 
-    private Material buscarMaterialAtivo(String materialId) {
-        Material material = materialRepository.findById(materialId)
+    private Material buscarMaterialAtivo(String materialId, String equipeId) {
+        Material material = materialRepository.findByIdAndEquipeId(materialId, equipeId)
                 .orElseThrow(() -> new RuntimeException("Material não encontrado"));
         if (!Boolean.TRUE.equals(material.getAtivo())) {
             throw new RuntimeException("Material inativo");
@@ -220,8 +221,8 @@ public class OrcamentoService {
         return material;
     }
 
-    private String nomeMaterial(String materialId) {
-        return materialRepository.findById(materialId)
+    private String nomeMaterial(Orcamento orcamento) {
+        return materialRepository.findByIdAndEquipeId(orcamento.getMaterialId(), orcamento.getEquipeId())
                 .map(Material::getNome)
                 .orElse(null);
     }
@@ -313,9 +314,10 @@ public class OrcamentoService {
         return imagens;
     }
 
-    private Orcamento buscarDoUsuario(String id, String usuarioId) {
-        return repository.findById(id)
-                .filter(orcamento -> usuarioId.equals(orcamento.getUsuarioId()))
+    // escrita: sem equipe -> 403 SEM_EQUIPE; orçamento de outra equipe -> não encontrado
+    private Orcamento buscarDaEquipe(String id, String usuarioId) {
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        return repository.findByIdAndEquipeId(id, equipeId)
                 .orElseThrow(() -> new RuntimeException("Orcamento nao encontrado"));
     }
 

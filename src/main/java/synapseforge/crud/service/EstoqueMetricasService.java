@@ -34,7 +34,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
+// Todas as agregações filtram pela equipe do usuário logado (primeiro critério do $match);
+// usuário sem equipe recebe métricas vazias/zeradas.
 @Service
 @RequiredArgsConstructor
 public class EstoqueMetricasService {
@@ -43,10 +46,16 @@ public class EstoqueMetricasService {
 
     private final MongoTemplate mongoTemplate;
     private final EstoqueService estoqueService;
+    private final EquipeContexto equipeContexto;
 
-    public List<ConsumoInsumoMetricaDTO> consumoPorInsumo(LocalDateTime dataInicio, LocalDateTime dataFim) {
+    public List<ConsumoInsumoMetricaDTO> consumoPorInsumo(LocalDateTime dataInicio, LocalDateTime dataFim,
+                                                          String usuarioId) {
+        Optional<String> equipe = equipeContexto.equipeDe(usuarioId);
+        if (equipe.isEmpty()) {
+            return List.of();
+        }
         TypedAggregation<MovimentoEstoque> aggregation = Aggregation.newAggregation(MovimentoEstoque.class,
-                Aggregation.match(criterioConsumoNoPeriodo(dataInicio, dataFim)),
+                Aggregation.match(criterioConsumoNoPeriodo(equipe.get(), dataInicio, dataFim)),
                 Aggregation.project("tipoInsumo", "insumoId")
                         .and(quantidadeComSinal("quantidade")).as("quantidadeConsumida")
                         .and(quantidadeComSinal("custoTotal")).as("custoConsumido"),
@@ -61,9 +70,15 @@ public class EstoqueMetricasService {
         return mongoTemplate.aggregate(aggregation, ConsumoInsumoMetricaDTO.class).getMappedResults();
     }
 
-    public CustoPedidoResponseDTO custoPorPedido(String pedidoId) {
+    // pedido de outra equipe responde como pedido sem consumo (custo zero), igual a um id inexistente
+    public CustoPedidoResponseDTO custoPorPedido(String pedidoId, String usuarioId) {
+        Optional<String> equipe = equipeContexto.equipeDe(usuarioId);
+        if (equipe.isEmpty()) {
+            return new CustoPedidoResponseDTO(pedidoId, BigDecimal.ZERO, List.of());
+        }
         TypedAggregation<MovimentoEstoque> aggregation = Aggregation.newAggregation(MovimentoEstoque.class,
-                Aggregation.match(Criteria.where("pedidoId").is(pedidoId)
+                Aggregation.match(Criteria.where("equipeId").is(equipe.get())
+                        .and("pedidoId").is(pedidoId)
                         .and("tipo").in(TipoMovimento.BAIXA.name(), TipoMovimento.ESTORNO.name())),
                 Aggregation.project("etapaOrigem")
                         .and(quantidadeComSinal("custoTotal")).as("custoConsumido"),
@@ -80,9 +95,14 @@ public class EstoqueMetricasService {
         return new CustoPedidoResponseDTO(pedidoId, custoTotal, porEtapa);
     }
 
-    public List<ConsumoEtapaMetricaDTO> consumoPorEtapa(LocalDateTime dataInicio, LocalDateTime dataFim) {
+    public List<ConsumoEtapaMetricaDTO> consumoPorEtapa(LocalDateTime dataInicio, LocalDateTime dataFim,
+                                                        String usuarioId) {
+        Optional<String> equipe = equipeContexto.equipeDe(usuarioId);
+        if (equipe.isEmpty()) {
+            return List.of();
+        }
         TypedAggregation<MovimentoEstoque> aggregation = Aggregation.newAggregation(MovimentoEstoque.class,
-                Aggregation.match(criterioConsumoNoPeriodo(dataInicio, dataFim)),
+                Aggregation.match(criterioConsumoNoPeriodo(equipe.get(), dataInicio, dataFim)),
                 Aggregation.project("etapaOrigem")
                         .and(quantidadeComSinal("quantidade")).as("quantidadeConsumida")
                         .and(quantidadeComSinal("custoTotal")).as("custoConsumido"),
@@ -95,13 +115,19 @@ public class EstoqueMetricasService {
         return mongoTemplate.aggregate(aggregation, ConsumoEtapaMetricaDTO.class).getMappedResults();
     }
 
-    public ConsumoMedioSemanalResponseDTO consumoMedioSemanal(TipoInsumo tipoInsumo, String insumoId, int semanas) {
+    public ConsumoMedioSemanalResponseDTO consumoMedioSemanal(TipoInsumo tipoInsumo, String insumoId, int semanas,
+                                                              String usuarioId) {
         if (semanas <= 0) {
             throw new IllegalArgumentException("Número de semanas deve ser positivo");
         }
+        Optional<String> equipe = equipeContexto.equipeDe(usuarioId);
+        if (equipe.isEmpty()) {
+            return new ConsumoMedioSemanalResponseDTO(tipoInsumo, insumoId, semanas, BigDecimal.ZERO);
+        }
         LocalDateTime inicio = LocalDateTime.now().minusWeeks(semanas);
         TypedAggregation<MovimentoEstoque> aggregation = Aggregation.newAggregation(MovimentoEstoque.class,
-                Aggregation.match(Criteria.where("criadoEm").gte(inicio)
+                Aggregation.match(Criteria.where("equipeId").is(equipe.get())
+                        .and("criadoEm").gte(inicio)
                         .and("tipo").in(TipoMovimento.BAIXA.name(), TipoMovimento.ESTORNO.name())
                         .and("tipoInsumo").is(tipoInsumo.name())
                         .and("insumoId").is(insumoId)),
@@ -119,15 +145,20 @@ public class EstoqueMetricasService {
         return new ConsumoMedioSemanalResponseDTO(tipoInsumo, insumoId, semanas, media);
     }
 
-    public List<InsumoCriticoResponseDTO> insumosCriticos() {
-        List<AlertaEstoqueResponseDTO> alertas = estoqueService.listarEmAlerta();
+    public List<InsumoCriticoResponseDTO> insumosCriticos(String usuarioId) {
+        Optional<String> equipe = equipeContexto.equipeDe(usuarioId);
+        if (equipe.isEmpty()) {
+            return List.of();
+        }
+        List<AlertaEstoqueResponseDTO> alertas = estoqueService.listarEmAlertaDaEquipe(equipe.get());
         if (alertas.isEmpty()) {
             return List.of();
         }
 
         LocalDateTime inicio = LocalDateTime.now().minusDays(DIAS_JANELA_CONSUMO);
         TypedAggregation<MovimentoEstoque> aggregation = Aggregation.newAggregation(MovimentoEstoque.class,
-                Aggregation.match(Criteria.where("criadoEm").gte(inicio)
+                Aggregation.match(Criteria.where("equipeId").is(equipe.get())
+                        .and("criadoEm").gte(inicio)
                         .and("tipo").in(TipoMovimento.BAIXA.name(), TipoMovimento.ESTORNO.name())),
                 Aggregation.project("tipoInsumo", "insumoId")
                         .and(quantidadeComSinal("quantidade")).as("quantidadeConsumida"),
@@ -159,8 +190,9 @@ public class EstoqueMetricasService {
         return criticos;
     }
 
-    private Criteria criterioConsumoNoPeriodo(LocalDateTime dataInicio, LocalDateTime dataFim) {
-        return Criteria.where("criadoEm").gte(dataInicio).lte(dataFim)
+    private Criteria criterioConsumoNoPeriodo(String equipeId, LocalDateTime dataInicio, LocalDateTime dataFim) {
+        return Criteria.where("equipeId").is(equipeId)
+                .and("criadoEm").gte(dataInicio).lte(dataFim)
                 .and("tipo").in(TipoMovimento.BAIXA.name(), TipoMovimento.ESTORNO.name());
     }
 

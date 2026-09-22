@@ -11,11 +11,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+// A paleta é da equipe: todos os integrantes veem e editam as mesmas cores.
 @Service
 public class CorService {
 
     @Autowired
     private CorRepository repository;
+
+    @Autowired
+    private EquipeContexto equipeContexto;
 
     public Cor toEntity(CorRequestDTO dto, String usuarioId) {
         Cor cor = new Cor();
@@ -47,25 +51,27 @@ public class CorService {
         );
     }
 
+    // a equipe vem de quem cadastra (cor.usuarioId, preenchido por toEntity com o usuário logado)
     public Cor criar(Cor cor) {
+        cor.setEquipeId(equipeContexto.equipeObrigatoria(cor.getUsuarioId()));
         cor.setCriadoEm(LocalDateTime.now());
         cor.setAtualizadoEm(LocalDateTime.now());
         return repository.save(cor);
     }
 
     public List<Cor> listar(String usuarioId) {
-        return repository.findByUsuarioId(usuarioId);
+        return equipeContexto.equipeDe(usuarioId)
+                .map(repository::findByEquipeId)
+                .orElse(List.of());
     }
 
     public Optional<Cor> buscarPorId(String id, String usuarioId) {
-        return repository.findById(id)
-                .filter(c -> usuarioId.equals(c.getUsuarioId()));
+        return equipeContexto.equipeDe(usuarioId)
+                .flatMap(equipeId -> repository.findByIdAndEquipeId(id, equipeId));
     }
 
     public Cor atualizar(String id, String usuarioId, Cor dados) {
-        Cor cor = repository.findById(id)
-                .filter(c -> usuarioId.equals(c.getUsuarioId()))
-                .orElseThrow(() -> new RuntimeException("Cor não encontrada"));
+        Cor cor = buscarDaEquipe(id, usuarioId);
         cor.setNome(dados.getNome());
         cor.setFornecedor(dados.getFornecedor());
         cor.setCodigo(dados.getCodigo());
@@ -79,9 +85,13 @@ public class CorService {
     }
 
     public void deletar(String id, String usuarioId) {
-        repository.findById(id)
-                .filter(c -> usuarioId.equals(c.getUsuarioId()))
-                .orElseThrow(() -> new RuntimeException("Cor não encontrada"));
+        buscarDaEquipe(id, usuarioId);
         repository.deleteById(id);
+    }
+
+    private Cor buscarDaEquipe(String id, String usuarioId) {
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        return repository.findByIdAndEquipeId(id, equipeId)
+                .orElseThrow(() -> new RuntimeException("Cor não encontrada"));
     }
 }

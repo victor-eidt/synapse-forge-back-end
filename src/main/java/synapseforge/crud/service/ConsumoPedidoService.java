@@ -8,24 +8,39 @@ import synapseforge.crud.DTO.ConsumoPedido.ItemConsumoRequestDTO;
 import synapseforge.crud.DTO.ConsumoPedido.ItemConsumoResponseDTO;
 import synapseforge.crud.infrastructure.entity.ConsumoPedido;
 import synapseforge.crud.infrastructure.entity.ItemConsumo;
+import synapseforge.crud.infrastructure.entity.TipoInsumo;
 import synapseforge.crud.infrastructure.repository.ConsumoPedidoRepository;
+import synapseforge.crud.infrastructure.repository.CorRepository;
+import synapseforge.crud.infrastructure.repository.MaterialRepository;
+import synapseforge.crud.infrastructure.repository.PedidoRepository;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+// A ficha de consumo é da equipe do pedido; pedido e insumos precisam ser da equipe do usuário.
 @Service
 @RequiredArgsConstructor
 public class ConsumoPedidoService {
 
     private final ConsumoPedidoRepository repository;
+    private final PedidoRepository pedidoRepository;
+    private final MaterialRepository materialRepository;
+    private final CorRepository corRepository;
+    private final EquipeContexto equipeContexto;
 
-    public ConsumoPedidoResponseDTO salvar(ConsumoPedidoRequestDTO dto) {
+    public ConsumoPedidoResponseDTO salvar(ConsumoPedidoRequestDTO dto, String usuarioId) {
         validarItensDuplicados(dto);
 
-        ConsumoPedido consumo = repository.findByPedidoId(dto.getPedidoId())
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        pedidoRepository.findByIdAndEquipeId(dto.getPedidoId(), equipeId)
+                .orElseThrow(() -> new RuntimeException("Pedido não encontrado"));
+        validarInsumosDaEquipe(dto, equipeId);
+
+        ConsumoPedido consumo = repository.findByPedidoIdAndEquipeId(dto.getPedidoId(), equipeId)
                 .orElseGet(() -> {
                     ConsumoPedido novo = new ConsumoPedido();
+                    novo.setEquipeId(equipeId);
                     novo.setPedidoId(dto.getPedidoId());
                     novo.setCriadoEm(LocalDateTime.now());
                     return novo;
@@ -36,8 +51,9 @@ public class ConsumoPedidoService {
         return toResponseDTO(repository.save(consumo));
     }
 
-    public ConsumoPedidoResponseDTO buscarPorPedido(String pedidoId) {
-        return repository.findByPedidoId(pedidoId)
+    public ConsumoPedidoResponseDTO buscarPorPedido(String pedidoId, String usuarioId) {
+        return equipeContexto.equipeDe(usuarioId)
+                .flatMap(equipeId -> repository.findByPedidoIdAndEquipeId(pedidoId, equipeId))
                 .map(this::toResponseDTO)
                 .orElseThrow(() -> new RuntimeException("Ficha de consumo não encontrada para o pedido"));
     }
@@ -50,6 +66,19 @@ public class ConsumoPedidoService {
             if (!vistos.add(chave)) {
                 throw new IllegalArgumentException(
                         "Item duplicado na ficha para o mesmo insumo e etapa: " + chave);
+            }
+        }
+    }
+
+    // insumo de outra equipe se comporta como inexistente
+    private void validarInsumosDaEquipe(ConsumoPedidoRequestDTO dto, String equipeId) {
+        for (ItemConsumoRequestDTO item : dto.getItens()) {
+            boolean existe = item.getTipoInsumo() == TipoInsumo.MATERIAL
+                    ? materialRepository.findByIdAndEquipeId(item.getInsumoId(), equipeId).isPresent()
+                    : corRepository.findByIdAndEquipeId(item.getInsumoId(), equipeId).isPresent();
+            if (!existe) {
+                throw new RuntimeException(item.getTipoInsumo() == TipoInsumo.MATERIAL
+                        ? "Material não encontrado" : "Cor não encontrada");
             }
         }
     }
