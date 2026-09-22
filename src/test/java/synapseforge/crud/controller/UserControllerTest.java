@@ -33,7 +33,7 @@ class UserControllerTest {
         user.setId("u-1");
         user.setNome("Ana");
 
-        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN");
+        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN", null, null);
 
         when(service.toEntity(dto)).thenReturn(user);
         when(service.criar(user)).thenReturn(user);
@@ -50,7 +50,7 @@ class UserControllerTest {
         User user = new User();
         user.setId("u-1");
         user.setNome("Ana");
-        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN");
+        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN", null, null);
 
         when(service.listar()).thenReturn(List.of(user));
         when(service.toResponseDTO(user)).thenReturn(response);
@@ -64,7 +64,7 @@ class UserControllerTest {
         User user = new User();
         user.setId("u-1");
         user.setNome("Ana");
-        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN");
+        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN", null, null);
 
         when(service.buscarPorId("u-1")).thenReturn(Optional.of(user));
         when(service.toResponseDTO(user)).thenReturn(response);
@@ -80,7 +80,7 @@ class UserControllerTest {
         User updated = new User();
         updated.setId("u-1");
         updated.setNome("Ana Atualizada");
-        UserResponseDTO response = new UserResponseDTO("u-1", "Ana Atualizada", "ana@email.com", "123", "111", "ADMIN");
+        UserResponseDTO response = new UserResponseDTO("u-1", "Ana Atualizada", "ana@email.com", "123", "111", "ADMIN", null, null);
 
         when(service.atualizar("u-1", dto)).thenReturn(updated);
         when(service.toResponseDTO(updated)).thenReturn(response);
@@ -102,7 +102,7 @@ class UserControllerTest {
         User user = new User();
         user.setId("u-1");
         user.setNome("Ana");
-        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN");
+        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN", null, null);
 
         when(service.toEntity(dto)).thenReturn(user);
         when(service.criarVarios(List.of(user))).thenReturn(List.of(user));
@@ -116,7 +116,7 @@ class UserControllerTest {
         User user = new User();
         user.setId("u-1");
         user.setNome("Ana");
-        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN");
+        UserResponseDTO response = new UserResponseDTO("u-1", "Ana", "ana@email.com", "123", "111", "ADMIN", null, null);
 
         when(service.buscarPorNome("Ana")).thenReturn(List.of(user));
         when(service.toResponseDTO(user)).thenReturn(response);
