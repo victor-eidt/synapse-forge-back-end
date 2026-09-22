@@ -20,6 +20,8 @@ import java.util.stream.Collectors;
 @Component
 public class DataInitializer implements CommandLineRunner {
 
+    private static final String EQUIPE_TESTE_ID = "equipe-teste-synapse";
+
     @Autowired
     private UserRepository userRepository;
 
@@ -33,23 +35,30 @@ public class DataInitializer implements CommandLineRunner {
     public void run(String... args) throws Exception {
         migrarUsuariosExistentes();
         seedTestUsers();
+        seedTestEquipe();
         seedTestCores();
     }
 
     // Sets emailConfirmado=true for users created before the email confirmation feature
     private void migrarUsuariosExistentes() {
-        List<User> naoConfirmados = userRepository.findByEmailConfirmadoFalseAndEmailConfirmTokenIsNull();
+        List<User> naoConfirmados =
+                userRepository.findByEmailConfirmadoFalseAndEmailConfirmTokenIsNull();
 
         for (User user : naoConfirmados) {
             user.setEmailConfirmado(true);
             userRepository.save(user);
-            System.out.println("Migrado (emailConfirmado=true): " + user.getEmail());
+
+            System.out.println(
+                    "Migrado (emailConfirmado=true): "
+                            + user.getEmail()
+            );
         }
     }
 
     private void seedTestUsers() {
 
         List<User> testUsers = Arrays.asList(
+
                 // CLIENTES
                 createTestUser(
                         "Alice Silva",
@@ -63,10 +72,22 @@ public class DataInitializer implements CommandLineRunner {
                         Role.CLIENTE
                 ),
 
-                // FUNCIONÁRIO
+                // FUNCIONÁRIOS
                 createTestUser(
                         "Funcionario Teste",
                         "funcionario@teste.com",
+                        Role.TECNICO
+                ),
+
+                createTestUser(
+                        "Funcionario Teste 2",
+                        "funcionario2@teste.com",
+                        Role.TECNICO
+                ),
+
+                createTestUser(
+                        "Funcionario Teste 3",
+                        "funcionario3@teste.com",
                         Role.TECNICO
                 ),
 
@@ -103,7 +124,11 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
-    private User createTestUser(String nome, String email, Role role) {
+    private User createTestUser(
+            String nome,
+            String email,
+            Role role
+    ) {
 
         User user = new User();
 
@@ -116,6 +141,45 @@ public class DataInitializer implements CommandLineRunner {
         user.setCriadoEm(LocalDateTime.now());
 
         return user;
+    }
+
+    private void seedTestEquipe() {
+
+        List<String> emailsEquipeTeste = Arrays.asList(
+                "funcionario@teste.com",
+                "funcionario2@teste.com",
+                "funcionario3@teste.com",
+                "gerente@teste.com"
+        );
+
+        for (String email : emailsEquipeTeste) {
+
+            userRepository.findByEmail(email)
+                    .ifPresent(user -> {
+
+                        if (!EQUIPE_TESTE_ID.equals(user.getEquipeId())) {
+
+                            user.setEquipeId(EQUIPE_TESTE_ID);
+                            user.setAtualizadoEm(LocalDateTime.now());
+
+                            userRepository.save(user);
+
+                            System.out.println(
+                                    "Usuário adicionado à equipe de teste: "
+                                            + user.getNome()
+                                            + " | Equipe: "
+                                            + EQUIPE_TESTE_ID
+                            );
+
+                        } else {
+
+                            System.out.println(
+                                    "Usuário já está na equipe de teste: "
+                                            + user.getNome()
+                            );
+                        }
+                    });
+        }
     }
 
     private void seedTestCores() {
@@ -138,7 +202,10 @@ public class DataInitializer implements CommandLineRunner {
         }
     }
 
-    private void seedCoresParaUsuario(String usuarioId, String nomeUsuario) {
+    private void seedCoresParaUsuario(
+            String usuarioId,
+            String nomeUsuario
+    ) {
 
         Set<String> existentes = corRepository
                 .findByUsuarioId(usuarioId)
@@ -147,6 +214,7 @@ public class DataInitializer implements CommandLineRunner {
                 .collect(Collectors.toSet());
 
         List<Cor> paleta = Arrays.asList(
+
                 novaCor(
                         usuarioId,
                         "Vermelho Queimado",
