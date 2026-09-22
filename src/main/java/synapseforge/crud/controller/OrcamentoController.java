@@ -38,8 +38,8 @@ public class OrcamentoController {
 
     @PreAuthorize("hasRole('GERENTE')")
     @PostMapping("/calcular")
-    public OrcamentoResponseDTO calcular(@RequestBody @Valid CalcularOrcamentoRequestDTO dto) {
-        return service.calcular(dto);
+    public OrcamentoResponseDTO calcular(@RequestBody @Valid CalcularOrcamentoRequestDTO dto, Authentication auth) {
+        return service.calcular(dto, (String) auth.getPrincipal());
     }
 
     @PreAuthorize("hasRole('GERENTE')")

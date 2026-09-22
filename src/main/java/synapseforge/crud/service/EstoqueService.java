@@ -29,6 +29,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+// Estoque por equipe: insumos, fichas de consumo e movimentos só são lidos/gravados na
+// equipe do usuário logado; insumo de outra equipe se comporta como inexistente.
 @Service
 @RequiredArgsConstructor
 public class EstoqueService {
@@ -38,19 +40,21 @@ public class EstoqueService {
     private final MovimentoEstoqueRepository movimentoRepository;
     private final ConsumoPedidoRepository consumoPedidoRepository;
     private final PoliticaConsumoResolver politicaResolver;
+    private final EquipeContexto equipeContexto;
 
     public MovimentoEstoqueResponseDTO registrarEntrada(TipoInsumo tipoInsumo, String insumoId, BigDecimal quantidade,
                                                         UnidadeMedida unidade, String motivo, String usuarioId) {
         if (quantidade == null || quantidade.signum() <= 0) {
             throw new IllegalArgumentException("Quantidade da entrada deve ser positiva");
         }
-        InsumoEstoque insumo = carregarInsumo(tipoInsumo, insumoId);
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        InsumoEstoque insumo = carregarInsumo(tipoInsumo, insumoId, equipeId);
         BigDecimal quantidadeBase = converterParaBase(insumo, quantidade, unidade);
         BigDecimal novoSaldo = insumo.saldo.add(quantidadeBase);
 
         salvarSaldo(insumo, novoSaldo);
         MovimentoEstoque movimento = novoMovimento(insumo, TipoMovimento.ENTRADA, quantidadeBase, novoSaldo,
-                null, null, motivo, usuarioId, UUID.randomUUID().toString());
+                null, null, motivo, usuarioId, equipeId, UUID.randomUUID().toString());
         return toMovimentoDTO(movimentoRepository.save(movimento));
     }
 
@@ -59,7 +63,8 @@ public class EstoqueService {
         if (quantidade == null || quantidade.signum() == 0) {
             throw new IllegalArgumentException("Quantidade do ajuste deve ser diferente de zero");
         }
-        InsumoEstoque insumo = carregarInsumo(tipoInsumo, insumoId);
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        InsumoEstoque insumo = carregarInsumo(tipoInsumo, insumoId, equipeId);
         BigDecimal quantidadeBase = converterParaBase(insumo, quantidade, unidade);
         BigDecimal novoSaldo = insumo.saldo.add(quantidadeBase);
         if (novoSaldo.signum() < 0) {
@@ -69,12 +74,12 @@ public class EstoqueService {
 
         salvarSaldo(insumo, novoSaldo);
         MovimentoEstoque movimento = novoMovimento(insumo, TipoMovimento.AJUSTE, quantidadeBase, novoSaldo,
-                null, null, motivo, usuarioId, UUID.randomUUID().toString());
+                null, null, motivo, usuarioId, equipeId, UUID.randomUUID().toString());
         return toMovimentoDTO(movimentoRepository.save(movimento));
     }
 
-    public SaldoInsumoResponseDTO consultarSaldo(TipoInsumo tipoInsumo, String insumoId) {
-        InsumoEstoque insumo = carregarInsumo(tipoInsumo, insumoId);
+    public SaldoInsumoResponseDTO consultarSaldo(TipoInsumo tipoInsumo, String insumoId, String usuarioId) {
+        InsumoEstoque insumo = carregarInsumoDaEquipeDe(tipoInsumo, insumoId, usuarioId);
         return new SaldoInsumoResponseDTO(
                 insumo.tipo,
                 insumo.id,
@@ -86,10 +91,16 @@ public class EstoqueService {
         );
     }
 
-    public List<AlertaEstoqueResponseDTO> listarEmAlerta() {
+    public List<AlertaEstoqueResponseDTO> listarEmAlerta(String usuarioId) {
+        return equipeContexto.equipeDe(usuarioId)
+                .map(this::listarEmAlertaDaEquipe)
+                .orElse(List.of());
+    }
+
+    public List<AlertaEstoqueResponseDTO> listarEmAlertaDaEquipe(String equipeId) {
         List<AlertaEstoqueResponseDTO> alertas = new ArrayList<>();
 
-        for (Material material : materialRepository.findByAtivoTrue()) {
+        for (Material material : materialRepository.findByEquipeIdAndAtivoTrue(equipeId)) {
             BigDecimal saldo = zeroSeNulo(material.getSaldo());
             BigDecimal minimo = zeroSeNulo(material.getEstoqueMinimo());
             if (saldo.compareTo(minimo) <= 0) {
@@ -98,7 +109,7 @@ public class EstoqueService {
             }
         }
 
-        for (Cor cor : corRepository.findAll()) {
+        for (Cor cor : corRepository.findByEquipeId(equipeId)) {
             BigDecimal saldo = BigDecimal.valueOf(cor.getEstoqueMl() == null ? 0 : cor.getEstoqueMl());
             BigDecimal minimo = BigDecimal.valueOf(cor.getEstoqueMinimoMl() == null ? 0 : cor.getEstoqueMinimoMl());
             if (saldo.compareTo(minimo) <= 0) {
@@ -110,7 +121,8 @@ public class EstoqueService {
     }
 
     public void baixarPorEtapa(String pedidoId, StatusPedido etapa, String usuarioId) {
-        ConsumoPedido consumo = consumoPedidoRepository.findByPedidoId(pedidoId).orElse(null);
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        ConsumoPedido consumo = consumoPedidoRepository.findByPedidoIdAndEquipeId(pedidoId, equipeId).orElse(null);
         if (consumo == null) {
             return;
         }
@@ -119,7 +131,7 @@ public class EstoqueService {
             return;
         }
 
-        List<MovimentoEstoque> movimentosDoPedido = movimentoRepository.findByPedidoId(pedidoId);
+        List<MovimentoEstoque> movimentosDoPedido = movimentoRepository.findByEquipeIdAndPedidoId(equipeId, pedidoId);
         List<BaixaPendente> pendentes = new ArrayList<>();
         List<EstoqueInsuficienteException.Falta> faltas = new ArrayList<>();
         for (ItemConsumo item : politica.itensDe(consumo)) {
@@ -128,7 +140,7 @@ public class EstoqueService {
             if (movimentoRepository.findByChaveIdempotencia(chave).isPresent()) {
                 continue;
             }
-            InsumoEstoque insumo = carregarInsumo(item.getTipoInsumo(), item.getInsumoId());
+            InsumoEstoque insumo = carregarInsumo(item.getTipoInsumo(), item.getInsumoId(), equipeId);
             BigDecimal quantidadeBase = converterParaBase(insumo, item.getQuantidade(), item.getUnidade());
             if (insumo.saldo.compareTo(quantidadeBase) < 0) {
                 faltas.add(new EstoqueInsuficienteException.Falta(insumo.nome, quantidadeBase, insumo.saldo));
@@ -144,12 +156,14 @@ public class EstoqueService {
             BigDecimal novoSaldo = pendente.insumo.saldo.subtract(pendente.quantidadeBase);
             salvarSaldo(pendente.insumo, novoSaldo);
             movimentoRepository.save(novoMovimento(pendente.insumo, TipoMovimento.BAIXA, pendente.quantidadeBase,
-                    novoSaldo, pedidoId, etapa, "Consumo do pedido na etapa " + etapa, usuarioId, pendente.chave));
+                    novoSaldo, pedidoId, etapa, "Consumo do pedido na etapa " + etapa, usuarioId, equipeId,
+                    pendente.chave));
         }
     }
 
     public void estornarPorEtapa(String pedidoId, StatusPedido etapa, String usuarioId) {
-        List<MovimentoEstoque> baixas = movimentoRepository.findByPedidoId(pedidoId).stream()
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        List<MovimentoEstoque> baixas = movimentoRepository.findByEquipeIdAndPedidoId(equipeId, pedidoId).stream()
                 .filter(m -> m.getTipo() == TipoMovimento.BAIXA && m.getEtapaOrigem() == etapa)
                 .toList();
 
@@ -159,11 +173,11 @@ public class EstoqueService {
             if (movimentoRepository.findByChaveIdempotencia(chaveEstorno).isPresent()) {
                 continue;
             }
-            InsumoEstoque insumo = carregarInsumo(baixa.getTipoInsumo(), baixa.getInsumoId());
+            InsumoEstoque insumo = carregarInsumo(baixa.getTipoInsumo(), baixa.getInsumoId(), equipeId);
             BigDecimal novoSaldo = insumo.saldo.add(baixa.getQuantidade());
             salvarSaldo(insumo, novoSaldo);
             MovimentoEstoque estorno = novoMovimento(insumo, TipoMovimento.ESTORNO, baixa.getQuantidade(), novoSaldo,
-                    pedidoId, etapa, "Estorno da baixa da etapa " + etapa, usuarioId, chaveEstorno);
+                    pedidoId, etapa, "Estorno da baixa da etapa " + etapa, usuarioId, equipeId, chaveEstorno);
             // estorno devolve exatamente o custo registrado na baixa, não o custo atual do insumo
             estorno.setCustoUnitario(baixa.getCustoUnitario());
             estorno.setCustoTotal(baixa.getCustoTotal());
@@ -171,12 +185,17 @@ public class EstoqueService {
         }
     }
 
-    public List<MovimentoEstoqueResponseDTO> historicoPorInsumo(TipoInsumo tipoInsumo, String insumoId) {
-        return movimentoRepository.findByTipoInsumoAndInsumoIdOrderByCriadoEmDesc(tipoInsumo, insumoId).stream()
+    public List<MovimentoEstoqueResponseDTO> historicoPorInsumo(TipoInsumo tipoInsumo, String insumoId, String usuarioId) {
+        // insumo de outra equipe -> não encontrado (não apenas lista vazia)
+        InsumoEstoque insumo = carregarInsumoDaEquipeDe(tipoInsumo, insumoId, usuarioId);
+        return movimentoRepository.findByEquipeIdAndTipoInsumoAndInsumoIdOrderByCriadoEmDesc(
+                        insumo.equipeId, tipoInsumo, insumoId).stream()
                 .map(this::toMovimentoDTO)
                 .toList();
     }
 
+    // A chave começa pelo pedidoId (ObjectId único no banco inteiro), então não colide entre
+    // equipes mesmo com o índice único global; por isso ela não precisa do equipeId.
     // O ciclo separa reentradas na etapa: cada ESTORNO abre um ciclo novo, então a baixa
     // seguinte da mesma etapa ganha chave própria e volta a debitar. Dentro do mesmo ciclo
     // a chave se repete e o índice único do banco segue recusando o segundo movimento.
@@ -220,20 +239,29 @@ public class EstoqueService {
         return unidade.paraBase(quantidade);
     }
 
-    private InsumoEstoque carregarInsumo(TipoInsumo tipoInsumo, String insumoId) {
+    // leitura: sem equipe, o insumo simplesmente não existe (mesma mensagem de não encontrado)
+    private InsumoEstoque carregarInsumoDaEquipeDe(TipoInsumo tipoInsumo, String insumoId, String usuarioId) {
+        String equipeId = equipeContexto.equipeDe(usuarioId)
+                .orElseThrow(() -> new RuntimeException(tipoInsumo == TipoInsumo.MATERIAL
+                        ? "Material não encontrado" : "Cor não encontrada"));
+        return carregarInsumo(tipoInsumo, insumoId, equipeId);
+    }
+
+    private InsumoEstoque carregarInsumo(TipoInsumo tipoInsumo, String insumoId, String equipeId) {
         if (tipoInsumo == TipoInsumo.MATERIAL) {
-            Material material = materialRepository.findById(insumoId)
+            Material material = materialRepository.findByIdAndEquipeId(insumoId, equipeId)
                     .orElseThrow(() -> new RuntimeException("Material não encontrado"));
             return new InsumoEstoque(TipoInsumo.MATERIAL, material.getId(), material.getNome(),
                     unidadeBaseDe(material), zeroSeNulo(material.getSaldo()), zeroSeNulo(material.getEstoqueMinimo()),
-                    zeroSeNulo(material.getPrecoPorGrama()), material);
+                    zeroSeNulo(material.getPrecoPorGrama()), equipeId, material);
         }
-        Cor cor = corRepository.findById(insumoId)
+        Cor cor = corRepository.findByIdAndEquipeId(insumoId, equipeId)
                 .orElseThrow(() -> new RuntimeException("Cor não encontrada"));
         BigDecimal saldo = BigDecimal.valueOf(cor.getEstoqueMl() == null ? 0 : cor.getEstoqueMl());
         BigDecimal minimo = BigDecimal.valueOf(cor.getEstoqueMinimoMl() == null ? 0 : cor.getEstoqueMinimoMl());
         BigDecimal custo = BigDecimal.valueOf(cor.getCustoMl() == null ? 0 : cor.getCustoMl());
-        return new InsumoEstoque(TipoInsumo.COR, cor.getId(), cor.getNome(), UnidadeMedida.ML, saldo, minimo, custo, cor);
+        return new InsumoEstoque(TipoInsumo.COR, cor.getId(), cor.getNome(), UnidadeMedida.ML, saldo, minimo, custo,
+                equipeId, cor);
     }
 
     private void salvarSaldo(InsumoEstoque insumo, BigDecimal novoSaldo) {
@@ -251,8 +279,10 @@ public class EstoqueService {
 
     private MovimentoEstoque novoMovimento(InsumoEstoque insumo, TipoMovimento tipo, BigDecimal quantidadeBase,
                                            BigDecimal saldoApos, String pedidoId, StatusPedido etapaOrigem,
-                                           String motivo, String usuarioId, String chaveIdempotencia) {
+                                           String motivo, String usuarioId, String equipeId,
+                                           String chaveIdempotencia) {
         MovimentoEstoque movimento = new MovimentoEstoque();
+        movimento.setEquipeId(equipeId);
         movimento.setTipoInsumo(insumo.tipo);
         movimento.setInsumoId(insumo.id);
         movimento.setTipo(tipo);
@@ -308,10 +338,12 @@ public class EstoqueService {
         private BigDecimal saldo;
         private final BigDecimal estoqueMinimo;
         private final BigDecimal custoUnitario;
+        private final String equipeId;
         private final Object entidade;
 
         private InsumoEstoque(TipoInsumo tipo, String id, String nome, UnidadeMedida unidadeBase,
-                              BigDecimal saldo, BigDecimal estoqueMinimo, BigDecimal custoUnitario, Object entidade) {
+                              BigDecimal saldo, BigDecimal estoqueMinimo, BigDecimal custoUnitario,
+                              String equipeId, Object entidade) {
             this.tipo = tipo;
             this.id = id;
             this.nome = nome;
@@ -319,6 +351,7 @@ public class EstoqueService {
             this.saldo = saldo;
             this.estoqueMinimo = estoqueMinimo;
             this.custoUnitario = custoUnitario;
+            this.equipeId = equipeId;
             this.entidade = entidade;
         }
     }

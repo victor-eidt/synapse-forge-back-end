@@ -41,20 +41,20 @@ public class EstoqueController {
 
     @GetMapping("/alertas")
     public List<AlertaEstoqueResponseDTO> listarEmAlerta(Authentication auth) {
-        return service.listarEmAlerta();
+        return service.listarEmAlerta((String) auth.getPrincipal());
     }
 
     @GetMapping("/saldo")
     public SaldoInsumoResponseDTO consultarSaldo(@RequestParam TipoInsumo tipoInsumo,
                                                  @RequestParam String insumoId,
                                                  Authentication auth) {
-        return service.consultarSaldo(tipoInsumo, insumoId);
+        return service.consultarSaldo(tipoInsumo, insumoId, (String) auth.getPrincipal());
     }
 
     @GetMapping("/movimentos")
     public List<MovimentoEstoqueResponseDTO> listarMovimentos(@RequestParam TipoInsumo tipoInsumo,
                                                               @RequestParam String insumoId,
                                                               Authentication auth) {
-        return service.historicoPorInsumo(tipoInsumo, insumoId);
+        return service.historicoPorInsumo(tipoInsumo, insumoId, (String) auth.getPrincipal());
     }
 }

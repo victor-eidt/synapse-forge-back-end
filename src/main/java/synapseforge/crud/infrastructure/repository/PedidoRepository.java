@@ -5,19 +5,28 @@ import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PedidoRepository extends MongoRepository<Pedido, String> {
 
-    List<Pedido> findByUsuarioId(String usuarioId);
+    // Consultas sempre filtradas pela equipe (isolamento entre oficinas)
 
-    List<Pedido> findByUsuarioIdAndStatus(
-            String usuarioId,
+    Optional<Pedido> findByIdAndEquipeId(String id, String equipeId);
+
+    List<Pedido> findByEquipeId(String equipeId);
+
+    List<Pedido> findByEquipeIdAndStatus(
+            String equipeId,
             StatusPedido status
     );
 
-    List<Pedido> findByClienteId(String clienteId);
+    List<Pedido> findByEquipeIdAndClienteId(
+            String equipeId,
+            String clienteId
+    );
 
-    List<Pedido> findByClienteIdAndStatus(
+    List<Pedido> findByEquipeIdAndClienteIdAndStatus(
+            String equipeId,
             String clienteId,
             StatusPedido status
     );

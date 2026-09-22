@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import synapseforge.crud.DTO.Estoque.AlertaEstoqueResponseDTO;
 import synapseforge.crud.DTO.Estoque.MovimentoEstoqueResponseDTO;
 import synapseforge.crud.exception.EstoqueInsuficienteException;
+import synapseforge.crud.exception.SemEquipeException;
 import synapseforge.crud.infrastructure.entity.Cor;
 import synapseforge.crud.infrastructure.entity.ConsumoPedido;
 import synapseforge.crud.infrastructure.entity.ItemConsumo;
@@ -36,7 +37,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +58,9 @@ class EstoqueServiceTest {
     @Mock
     private ConsumoPedidoRepository consumoPedidoRepository;
 
+    @Mock
+    private EquipeContexto equipeContexto;
+
     private EstoqueService service;
 
     @BeforeEach
@@ -64,18 +70,25 @@ class EstoqueServiceTest {
                 new PoliticaConsumoPintura(),
                 new PoliticaConsumoFinalizado()));
         service = new EstoqueService(materialRepository, corRepository, movimentoRepository,
-                consumoPedidoRepository, resolver);
+                consumoPedidoRepository, resolver, equipeContexto);
+        // user1 é da eq-1; user9 é de outra oficina (eq-2); semEquipe ainda não entrou em nenhuma
+        lenient().when(equipeContexto.equipeDe("user1")).thenReturn(Optional.of("eq-1"));
+        lenient().when(equipeContexto.equipeObrigatoria("user1")).thenReturn("eq-1");
+        lenient().when(equipeContexto.equipeDe("user9")).thenReturn(Optional.of("eq-2"));
+        lenient().when(equipeContexto.equipeObrigatoria("user9")).thenReturn("eq-2");
+        lenient().when(equipeContexto.equipeDe("semEquipe")).thenReturn(Optional.empty());
+        lenient().when(equipeContexto.equipeObrigatoria("semEquipe")).thenThrow(new SemEquipeException());
     }
 
     @Test
     void baixaFelizDebitaEGravaMovimentoComSaldoAposCorreto() {
         Material resina = material("mat1", "Resina Cinza", "500", "100");
-        when(consumoPedidoRepository.findByPedidoId("ped1"))
+        when(consumoPedidoRepository.findByPedidoIdAndEquipeId("ped1", "eq-1"))
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
         when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0"))
                 .thenReturn(Optional.empty());
-        when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(resina));
 
         service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
 
@@ -94,12 +107,13 @@ class EstoqueServiceTest {
         assertThat(movimento.getEtapaOrigem()).isEqualTo(StatusPedido.IMPRESSAO);
         assertThat(movimento.getChaveIdempotencia()).isEqualTo("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0");
         assertThat(movimento.getCustoTotal()).isEqualByComparingTo("10.00");
+        assertThat(movimento.getEquipeId()).isEqualTo("eq-1");
     }
 
     @Test
     void baixaRepetidaNaMesmaEtapaNaoDebitaDuasVezes() {
         // dois cliques na mesma etapa, sem estorno no meio: mesmo ciclo, mesma chave, sem novo débito
-        when(consumoPedidoRepository.findByPedidoId("ped1"))
+        when(consumoPedidoRepository.findByPedidoIdAndEquipeId("ped1", "eq-1"))
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
         MovimentoEstoque baixaOriginal = new MovimentoEstoque();
@@ -107,7 +121,7 @@ class EstoqueServiceTest {
         baixaOriginal.setInsumoId("mat1");
         baixaOriginal.setTipo(TipoMovimento.BAIXA);
         baixaOriginal.setEtapaOrigem(StatusPedido.IMPRESSAO);
-        when(movimentoRepository.findByPedidoId("ped1")).thenReturn(List.of(baixaOriginal));
+        when(movimentoRepository.findByEquipeIdAndPedidoId("eq-1", "ped1")).thenReturn(List.of(baixaOriginal));
         when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0"))
                 .thenReturn(Optional.of(baixaOriginal));
 
@@ -123,7 +137,7 @@ class EstoqueServiceTest {
         // ESTORNO abre um ciclo novo e a baixa seguinte ganha chave própria. O histórico
         // fica com as duas BAIXAs, em ciclos diferentes.
         Material resina = material("mat1", "Resina Cinza", "500", "100");
-        when(consumoPedidoRepository.findByPedidoId("ped1"))
+        when(consumoPedidoRepository.findByPedidoIdAndEquipeId("ped1", "eq-1"))
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
 
@@ -141,11 +155,11 @@ class EstoqueServiceTest {
         estornoCicloZero.setEtapaOrigem(StatusPedido.IMPRESSAO);
         estornoCicloZero.setChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:ESTORNO:0");
 
-        when(movimentoRepository.findByPedidoId("ped1"))
+        when(movimentoRepository.findByEquipeIdAndPedidoId("eq-1", "ped1"))
                 .thenReturn(List.of(baixaCicloZero, estornoCicloZero));
         when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:1"))
                 .thenReturn(Optional.empty());
-        when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(resina));
 
         service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
 
@@ -177,10 +191,10 @@ class EstoqueServiceTest {
         baixa.setCustoTotal(new BigDecimal("10.00"));
         baixa.setChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0");
 
-        when(movimentoRepository.findByPedidoId("ped1")).thenReturn(List.of(baixa));
+        when(movimentoRepository.findByEquipeIdAndPedidoId("eq-1", "ped1")).thenReturn(List.of(baixa));
         when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:ESTORNO:0"))
                 .thenReturn(Optional.empty());
-        when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(resina));
 
         service.estornarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
 
@@ -213,7 +227,7 @@ class EstoqueServiceTest {
         baixa.setQuantidade(new BigDecimal("100"));
         baixa.setChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0");
 
-        when(movimentoRepository.findByPedidoId("ped1")).thenReturn(List.of(baixa));
+        when(movimentoRepository.findByEquipeIdAndPedidoId("eq-1", "ped1")).thenReturn(List.of(baixa));
         when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:ESTORNO:0"))
                 .thenReturn(Optional.of(new MovimentoEstoque()));
 
@@ -227,13 +241,13 @@ class EstoqueServiceTest {
     void saldoInsuficienteLancaExcecaoENenhumInsumoEDebitado() {
         Material resina = material("mat1", "Resina Cinza", "500", "100");
         Material filamento = material("mat2", "Filamento PLA", "50", "100");
-        when(consumoPedidoRepository.findByPedidoId("ped1"))
+        when(consumoPedidoRepository.findByPedidoIdAndEquipeId("ped1", "eq-1"))
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO),
                         item(TipoInsumo.MATERIAL, "mat2", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
         when(movimentoRepository.findByChaveIdempotencia(anyString())).thenReturn(Optional.empty());
-        when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
-        when(materialRepository.findById("mat2")).thenReturn(Optional.of(filamento));
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(resina));
+        when(materialRepository.findByIdAndEquipeId("mat2", "eq-1")).thenReturn(Optional.of(filamento));
 
         assertThatThrownBy(() -> service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1"))
                 .isInstanceOf(EstoqueInsuficienteException.class)
@@ -254,18 +268,18 @@ class EstoqueServiceTest {
     @Test
     void itemDeEtapaNaoAlcancadaNuncaEDebitado() {
         Material resina = material("mat1", "Resina Cinza", "500", "100");
-        when(consumoPedidoRepository.findByPedidoId("ped1"))
+        when(consumoPedidoRepository.findByPedidoIdAndEquipeId("ped1", "eq-1"))
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO),
                         item(TipoInsumo.MATERIAL, "emb1", "1", UnidadeMedida.UN, StatusPedido.FINALIZADO))));
         when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0"))
                 .thenReturn(Optional.empty());
-        when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(resina));
 
         service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
 
         // a embalagem (FINALIZADO) não é sequer carregada ao processar IMPRESSAO
-        verify(materialRepository, never()).findById("emb1");
+        verify(materialRepository, never()).findByIdAndEquipeId("emb1", "eq-1");
         ArgumentCaptor<MovimentoEstoque> movimentoSalvo = ArgumentCaptor.forClass(MovimentoEstoque.class);
         verify(movimentoRepository).save(movimentoSalvo.capture());
         assertThat(movimentoSalvo.getValue().getInsumoId()).isEqualTo("mat1");
@@ -274,7 +288,7 @@ class EstoqueServiceTest {
     @Test
     void entradaEmKgEConvertidaParaGramas() {
         Material resina = material("mat1", "Resina Cinza", "500", "100");
-        when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(resina));
         when(movimentoRepository.save(any(MovimentoEstoque.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MovimentoEstoqueResponseDTO dto = service.registrarEntrada(TipoInsumo.MATERIAL, "mat1",
@@ -292,7 +306,7 @@ class EstoqueServiceTest {
     @Test
     void entradaEmLitrosEConvertidaParaMililitros() {
         Cor tinta = cor("cor1", "Azul Cobalto", 450, 500);
-        when(corRepository.findById("cor1")).thenReturn(Optional.of(tinta));
+        when(corRepository.findByIdAndEquipeId("cor1", "eq-1")).thenReturn(Optional.of(tinta));
         when(movimentoRepository.save(any(MovimentoEstoque.class))).thenAnswer(inv -> inv.getArgument(0));
 
         MovimentoEstoqueResponseDTO dto = service.registrarEntrada(TipoInsumo.COR, "cor1",
@@ -310,25 +324,134 @@ class EstoqueServiceTest {
     @Test
     void alertaDisparaQuandoSaldoFicaIgualAoMinimo() {
         Material resina = material("mat1", "Resina Cinza", "600", "500");
-        when(consumoPedidoRepository.findByPedidoId("ped1"))
+        when(consumoPedidoRepository.findByPedidoIdAndEquipeId("ped1", "eq-1"))
                 .thenReturn(Optional.of(ficha("ped1",
                         item(TipoInsumo.MATERIAL, "mat1", "100", UnidadeMedida.G, StatusPedido.IMPRESSAO))));
         when(movimentoRepository.findByChaveIdempotencia("ped1:MATERIAL:mat1:IMPRESSAO:BAIXA:0"))
                 .thenReturn(Optional.empty());
-        when(materialRepository.findById("mat1")).thenReturn(Optional.of(resina));
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(resina));
 
         service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user1");
         assertThat(resina.getSaldo()).isEqualByComparingTo("500");
 
-        when(materialRepository.findByAtivoTrue()).thenReturn(List.of(resina));
-        when(corRepository.findAll()).thenReturn(List.of());
+        when(materialRepository.findByEquipeIdAndAtivoTrue("eq-1")).thenReturn(List.of(resina));
+        when(corRepository.findByEquipeId("eq-1")).thenReturn(List.of());
 
-        List<AlertaEstoqueResponseDTO> alertas = service.listarEmAlerta();
+        List<AlertaEstoqueResponseDTO> alertas = service.listarEmAlerta("user1");
 
         assertThat(alertas).hasSize(1);
         assertThat(alertas.get(0).getInsumoId()).isEqualTo("mat1");
         assertThat(alertas.get(0).getSaldo()).isEqualByComparingTo("500");
         assertThat(alertas.get(0).getEstoqueMinimo()).isEqualByComparingTo("500");
+    }
+
+    // =========================================================
+    // ISOLAMENTO POR EQUIPE (SYN-100)
+    // =========================================================
+
+    @Test
+    void entradaEmInsumoDeOutraEquipeSeComportaComoInexistente() {
+        // mat1 existe na eq-1; user9 (eq-2) procura na própria equipe e não encontra
+        assertThatThrownBy(() -> service.registrarEntrada(TipoInsumo.MATERIAL, "mat1",
+                BigDecimal.TEN, UnidadeMedida.G, "compra", "user9"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Material não encontrado");
+        assertThatThrownBy(() -> service.ajustar(TipoInsumo.COR, "cor1",
+                BigDecimal.TEN, UnidadeMedida.ML, "ajuste", "user9"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("Cor não encontrada");
+
+        verify(materialRepository).findByIdAndEquipeId("mat1", "eq-2");
+        verify(corRepository).findByIdAndEquipeId("cor1", "eq-2");
+        verify(materialRepository, never()).findById(anyString());
+        verify(materialRepository, never()).save(any());
+        verify(movimentoRepository, never()).save(any());
+    }
+
+    @Test
+    void saldoEHistoricoDeInsumoDeOutraEquipeNaoSaoEncontrados() {
+        assertThatThrownBy(() -> service.consultarSaldo(TipoInsumo.MATERIAL, "mat1", "user9"))
+                .hasMessage("Material não encontrado");
+        assertThatThrownBy(() -> service.historicoPorInsumo(TipoInsumo.COR, "cor1", "user9"))
+                .hasMessage("Cor não encontrada");
+        assertThatThrownBy(() -> service.consultarSaldo(TipoInsumo.MATERIAL, "mat1", "semEquipe"))
+                .hasMessage("Material não encontrado");
+
+        verifyNoInteractions(movimentoRepository);
+    }
+
+    @Test
+    void historicoTrazSoMovimentosDaEquipe() {
+        Material resina = material("mat1", "Resina Cinza", "500", "100");
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(resina));
+        MovimentoEstoque entrada = new MovimentoEstoque();
+        entrada.setEquipeId("eq-1");
+        entrada.setTipo(TipoMovimento.ENTRADA);
+        when(movimentoRepository.findByEquipeIdAndTipoInsumoAndInsumoIdOrderByCriadoEmDesc(
+                "eq-1", TipoInsumo.MATERIAL, "mat1")).thenReturn(List.of(entrada));
+
+        List<MovimentoEstoqueResponseDTO> historico =
+                service.historicoPorInsumo(TipoInsumo.MATERIAL, "mat1", "user1");
+
+        assertThat(historico).hasSize(1);
+        assertThat(historico.get(0).getTipo()).isEqualTo(TipoMovimento.ENTRADA);
+    }
+
+    @Test
+    void baixaNaoEnxergaFichaDeOutraEquipe() {
+        // a ficha de ped1 é da eq-1; ao processar pela eq-2 ela não existe e nada é debitado
+        service.baixarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user9");
+
+        verify(consumoPedidoRepository).findByPedidoIdAndEquipeId("ped1", "eq-2");
+        verify(materialRepository, never()).save(any());
+        verify(movimentoRepository, never()).save(any());
+    }
+
+    @Test
+    void estornoSoDevolveBaixasDaEquipe() {
+        // sem baixas da eq-2 para ped1 (as da eq-1 não entram na consulta), nada é estornado
+        service.estornarPorEtapa("ped1", StatusPedido.IMPRESSAO, "user9");
+
+        verify(movimentoRepository).findByEquipeIdAndPedidoId("eq-2", "ped1");
+        verify(materialRepository, never()).save(any());
+        verify(movimentoRepository, never()).save(any());
+    }
+
+    @Test
+    void alertasListamSoInsumosDaEquipe() {
+        Material resina = material("mat1", "Resina Cinza", "100", "500");
+        when(materialRepository.findByEquipeIdAndAtivoTrue("eq-1")).thenReturn(List.of(resina));
+        when(corRepository.findByEquipeId("eq-1")).thenReturn(List.of());
+
+        assertThat(service.listarEmAlerta("user1")).hasSize(1);
+        verify(materialRepository, never()).findByEquipeIdAndAtivoTrue("eq-2");
+    }
+
+    @Test
+    void usuarioSemEquipeNaoMovimentaEstoqueENaoTemAlertas() {
+        assertThat(service.listarEmAlerta("semEquipe")).isEmpty();
+        assertThatThrownBy(() -> service.registrarEntrada(TipoInsumo.MATERIAL, "mat1",
+                BigDecimal.TEN, UnidadeMedida.G, "compra", "semEquipe"))
+                .isInstanceOf(SemEquipeException.class);
+        assertThatThrownBy(() -> service.ajustar(TipoInsumo.MATERIAL, "mat1",
+                BigDecimal.TEN, UnidadeMedida.G, "ajuste", "semEquipe"))
+                .isInstanceOf(SemEquipeException.class);
+
+        verifyNoInteractions(materialRepository, corRepository, movimentoRepository);
+    }
+
+    @Test
+    void entradaGravaMovimentoNaEquipeDoUsuario() {
+        Material resina = material("mat1", "Resina Cinza", "500", "100");
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(resina));
+        when(movimentoRepository.save(any(MovimentoEstoque.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.registrarEntrada(TipoInsumo.MATERIAL, "mat1", BigDecimal.ONE, UnidadeMedida.G, "compra", "user1");
+
+        ArgumentCaptor<MovimentoEstoque> movimentoSalvo = ArgumentCaptor.forClass(MovimentoEstoque.class);
+        verify(movimentoRepository).save(movimentoSalvo.capture());
+        assertThat(movimentoSalvo.getValue().getEquipeId()).isEqualTo("eq-1");
+        assertThat(movimentoSalvo.getValue().getUsuarioId()).isEqualTo("user1");
     }
 
     private Material material(String id, String nome, String saldo, String estoqueMinimo) {

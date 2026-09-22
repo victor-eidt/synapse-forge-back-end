@@ -14,6 +14,10 @@ import org.springframework.stereotype.Component;
  * O índice ÚNICO em chaveIdempotencia é o que garante a idempotência da baixa no
  * nível do banco: mesmo que duas requisições concorrentes passem pela verificação
  * feita no código, a segunda gravação do mesmo movimento é rejeitada pelo MongoDB.
+ * <p>
+ * Com o isolamento por equipe (SYN-100) o índice único continua global de propósito: a
+ * chave começa pelo pedidoId (ObjectId único no banco) ou é um UUID, então não há colisão
+ * entre equipes, e incluir o equipeId só enfraqueceria a garantia.
  */
 @Component
 @RequiredArgsConstructor
@@ -35,5 +39,10 @@ public class EstoqueIndexInitializer implements CommandLineRunner {
 
         mongoTemplate.indexOps(COLECAO_MOVIMENTOS).ensureIndex(
                 new Index().on("pedidoId", Sort.Direction.ASC));
+
+        // métricas de consumo: toda agregação filtra por equipe e período
+        mongoTemplate.indexOps(COLECAO_MOVIMENTOS).ensureIndex(
+                new Index().on("equipeId", Sort.Direction.ASC)
+                        .on("criadoEm", Sort.Direction.ASC));
     }
 }
