@@ -23,8 +23,6 @@ public interface UserRepository extends MongoRepository<User, String> {
 
     List<User> findByEmailConfirmadoFalseAndEmailConfirmTokenIsNull();
 
-    List<User> findByRoleAndEquipeIdIsNull(Role role);
-
     List<User> findByEquipeId(String equipeId);
 
     List<User> findByEquipeIdAndNomeIgnoreCaseContaining(String equipeId, String nome);
