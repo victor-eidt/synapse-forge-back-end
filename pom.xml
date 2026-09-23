@@ -27,6 +27,9 @@
 	</scm>
 	<properties>
 		<java.version>17</java.version>
+		<!-- O Boot 3.3 gerencia a 3.14; o embed.mongo 4.22 (testes) chama um metodo que so existe
+		     a partir da 3.15 e o contextLoads quebrava com NoSuchMethodError. -->
+		<commons-lang3.version>3.17.0</commons-lang3.version>
 	</properties>
 	<dependencies>
 
