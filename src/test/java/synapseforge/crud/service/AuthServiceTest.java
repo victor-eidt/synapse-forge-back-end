@@ -55,7 +55,7 @@ class AuthServiceTest {
         dto.setTelefone("9999");
         dto.setRole(Role.ADMIN);
 
-        when(repository.findByEmail("ana@teste.com")).thenReturn(Optional.empty());
+        when(repository.buscarPorEmail("ana@teste.com")).thenReturn(Optional.empty());
         when(encoder.encode("123456")).thenReturn("hash");
 
         Map<String, String> result = service.cadastro(dto);
@@ -79,7 +79,7 @@ class AuthServiceTest {
         Equipe equipe = new Equipe();
         equipe.setId("eq-1");
 
-        when(repository.findByEmail("gabi@loja.com")).thenReturn(Optional.empty());
+        when(repository.buscarPorEmail("gabi@loja.com")).thenReturn(Optional.empty());
         when(encoder.encode("123456")).thenReturn("hash");
         when(equipeService.criar(any(), eq("Ateliê da Gabi"), isNull(), isNull())).thenReturn(equipe);
 
@@ -92,7 +92,7 @@ class AuthServiceTest {
 
     @Test
     void cadastroGerenteSemNomeDaLojaERecusadoSemCriarNada() {
-        when(repository.findByEmail("gabi@loja.com")).thenReturn(Optional.empty());
+        when(repository.buscarPorEmail("gabi@loja.com")).thenReturn(Optional.empty());
 
         RuntimeException erro = assertThrows(RuntimeException.class,
                 () -> service.cadastroGerente(dtoGerente("   ")));
@@ -107,7 +107,7 @@ class AuthServiceTest {
         Equipe equipe = new Equipe();
         equipe.setId("eq-1");
 
-        when(repository.findByEmail("gabi@loja.com")).thenReturn(Optional.empty());
+        when(repository.buscarPorEmail("gabi@loja.com")).thenReturn(Optional.empty());
         when(encoder.encode("123456")).thenReturn("hash");
         when(equipeService.criar(any(), eq("Loja"), isNull(), isNull())).thenReturn(equipe);
         doThrow(new RuntimeException("SMTP fora")).when(emailService)
@@ -127,7 +127,7 @@ class AuthServiceTest {
         dto.setSenha("123456");
         dto.setNomeEquipe("Ignorado");
 
-        when(repository.findByEmail("ana@teste.com")).thenReturn(Optional.empty());
+        when(repository.buscarPorEmail("ana@teste.com")).thenReturn(Optional.empty());
         when(encoder.encode("123456")).thenReturn("hash");
 
         service.cadastro(dto);
@@ -149,7 +149,7 @@ class AuthServiceTest {
         user.setTentativasLogin(0);
         user.setRole(Role.CLIENTE);
 
-        when(repository.findByEmail("ana@teste.com")).thenReturn(Optional.of(user));
+        when(repository.buscarPorEmail("ana@teste.com")).thenReturn(Optional.of(user));
         when(encoder.matches("123456", "hash")).thenReturn(true);
         when(jwtService.generateToken("u-1", Role.CLIENTE)).thenReturn("jwt-token");
 
@@ -184,7 +184,7 @@ class AuthServiceTest {
         user.setEmail("ana@teste.com");
         user.setNome("Ana");
 
-        when(repository.findByEmail("ana@teste.com")).thenReturn(Optional.of(user));
+        when(repository.buscarPorEmail("ana@teste.com")).thenReturn(Optional.of(user));
 
         service.esqueciSenha("ana@teste.com");
 
@@ -212,5 +212,36 @@ class AuthServiceTest {
         assertNull(user.getResetToken());
         assertNull(user.getResetTokenExpira());
         verify(repository).save(user);
+    }
+
+    @Test
+    void cadastroGravaOEmailNormalizado() {
+        UserRequestDTO dto = new UserRequestDTO();
+        dto.setNome(" Ana ");
+        dto.setEmail("  Ana@Teste.COM ");
+        dto.setSenha("123456");
+
+        when(repository.buscarPorEmail("  Ana@Teste.COM ")).thenReturn(Optional.empty());
+        when(encoder.encode("123456")).thenReturn("hash");
+
+        service.cadastro(dto);
+
+        org.mockito.ArgumentCaptor<User> salvo = org.mockito.ArgumentCaptor.forClass(User.class);
+        verify(repository).save(salvo.capture());
+        assertEquals("ana@teste.com", salvo.getValue().getEmail());
+        assertEquals("Ana", salvo.getValue().getNome());
+    }
+
+    @Test
+    void cadastroRecusaEmailQueJaExisteComOutraCaixa() {
+        UserRequestDTO dto = new UserRequestDTO();
+        dto.setNome("Ana");
+        dto.setEmail("ANA@teste.com");
+        dto.setSenha("123456");
+
+        when(repository.buscarPorEmail("ANA@teste.com")).thenReturn(Optional.of(new User()));
+
+        assertThrows(RuntimeException.class, () -> service.cadastro(dto));
+        verify(repository, never()).save(any(User.class));
     }
 }

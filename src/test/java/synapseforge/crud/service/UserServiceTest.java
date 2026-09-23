@@ -74,7 +74,7 @@ class UserServiceTest {
         User user = new User();
         user.setEmail("ana@teste.com");
 
-        when(repository.findByEmail("ana@teste.com")).thenReturn(Optional.of(user));
+        when(repository.buscarPorEmail("ana@teste.com")).thenReturn(Optional.of(user));
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.criar(user));
         assertTrue(ex.getMessage().toLowerCase().contains("email"));
@@ -366,7 +366,7 @@ class UserServiceTest {
         user.setEmail("ana@teste.com");
 
         when(repository.findById("u-1")).thenReturn(Optional.of(user));
-        when(repository.findByEmail("novo@teste.com")).thenReturn(Optional.empty());
+        when(repository.buscarPorEmail("novo@teste.com")).thenReturn(Optional.empty());
 
         Map<String, String> result = service.solicitarMudancaEmail("u-1", "novo@teste.com");
 
