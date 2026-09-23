@@ -15,6 +15,7 @@ import synapseforge.crud.exception.SemEquipeException;
 import synapseforge.crud.infrastructure.entity.Material;
 import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import synapseforge.crud.infrastructure.repository.MaterialRepository;
+import synapseforge.crud.infrastructure.repository.PedidoRepository;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -28,6 +29,9 @@ class MaterialServiceTest {
 
     @Mock
     private EquipeContexto equipeContexto;
+
+    @Mock
+    private PedidoRepository pedidoRepository;
 
     @InjectMocks
     private MaterialService service;
@@ -168,7 +172,6 @@ class MaterialServiceTest {
         assertEquals("Material não encontrado", aoAtualizar.getMessage());
         assertEquals("Material não encontrado", aoInativar.getMessage());
         verify(repository, times(3)).findByIdAndEquipeId("m-1", "eq-2");
-        verify(repository, never()).findById(any());
         verify(repository, never()).save(any());
     }
 
@@ -213,5 +216,26 @@ class MaterialServiceTest {
         assertThrows(SemEquipeException.class, () -> service.atualizar("m-1", dtoPla(), "user-1"));
         assertThrows(SemEquipeException.class, () -> service.inativar("m-1", "user-1"));
         verifyNoInteractions(repository);
+    }
+
+    @Test
+    void clienteLeMaterialDoProprioPedido() {
+        // cliente não tem equipe: só lê o material de um pedido em que ele é o cliente
+        semEquipe("cliente-1");
+        when(repository.findById("m-1")).thenReturn(Optional.of(materialPla()));
+        when(pedidoRepository.existsByEquipeIdAndClienteIdAndMaterialId("eq-1", "cliente-1", "m-1"))
+                .thenReturn(true);
+
+        assertEquals("PLA", service.buscarPorId("m-1", "cliente-1").getNome());
+    }
+
+    @Test
+    void clienteNaoLeMaterialSemPedidoDele() {
+        semEquipe("cliente-1");
+        when(repository.findById("m-1")).thenReturn(Optional.of(materialPla()));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.buscarPorId("m-1", "cliente-1"));
+
+        assertEquals("Material não encontrado", ex.getMessage());
     }
 }

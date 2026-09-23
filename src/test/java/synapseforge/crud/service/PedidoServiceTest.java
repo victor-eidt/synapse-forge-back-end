@@ -65,10 +65,10 @@ class PedidoServiceTest {
 
     @BeforeEach
     void setUp() {
-        // user-1 e user-2 são da eq-1; user-9 é de outra oficina (eq-2); semEquipe não entrou em nenhuma
+        // user-1 e user-2 são da eq-1; user-9 é de outra oficina (eq-2); semEquipe não entrou em nenhuma.
+        // cliente-1 é CLIENTE: não tem equipe e nunca consulta o EquipeContexto
         naEquipe("user-1", "eq-1");
         naEquipe("user-2", "eq-1");
-        naEquipe("cliente-1", "eq-1");
         naEquipe("user-9", "eq-2");
         lenient().when(equipeContexto.equipeDe("semEquipe")).thenReturn(Optional.empty());
         lenient().when(equipeContexto.equipeObrigatoria("semEquipe")).thenThrow(new SemEquipeException());
@@ -378,18 +378,6 @@ class PedidoServiceTest {
     }
 
     @Test
-    void clienteListaSoOsPropriosPedidosDentroDaEquipe() {
-        Pedido pedido = pedidoDaEquipe("p-1", "eq-1");
-        pedido.setClienteId("cliente-1");
-        when(repository.findByEquipeIdAndClienteId("eq-1", "cliente-1")).thenReturn(List.of(pedido));
-        when(repository.findByEquipeIdAndClienteIdAndStatus("eq-1", "cliente-1", StatusPedido.MODELAGEM))
-                .thenReturn(List.of(pedido));
-
-        assertEquals(1, service.listar("cliente-1", Role.CLIENTE).size());
-        assertEquals(1, service.listarPorStatus("cliente-1", Role.CLIENTE, StatusPedido.MODELAGEM).size());
-    }
-
-    @Test
     void listarPorStatusFiltraPelaEquipe() {
         Pedido pedido = pedidoDaEquipe("p-1", "eq-1");
         when(repository.findByEquipeIdAndStatus("eq-1", StatusPedido.MODELAGEM)).thenReturn(List.of(pedido));
@@ -447,80 +435,151 @@ class PedidoServiceTest {
         verifyNoInteractions(estoqueService);
     }
 
-    @Test
-    void clienteNaoVePedidoDaEquipeQueNaoEDele() {
-        Pedido pedido = pedidoDaEquipe("p-1", "eq-1");
-        pedido.setClienteId("outro-cliente");
-        when(repository.findByIdAndEquipeId("p-1", "eq-1")).thenReturn(Optional.of(pedido));
+    // =========================================================
+    // CLIENTE VINCULADO POR PEDIDOS (SYN-100, rodada 2)
+    // =========================================================
 
-        assertTrue(service.buscarPorId("p-1", "cliente-1", Role.CLIENTE).isEmpty());
+    @Test
+    void clienteVeOsPropriosPedidosDeDuasEquipes() {
+        Pedido daEquipeA = pedidoDaEquipe("p-A", "eq-1");
+        daEquipeA.setClienteId("cliente-1");
+        Pedido daEquipeB = pedidoDaEquipe("p-B", "eq-2");
+        daEquipeB.setClienteId("cliente-1");
+        when(repository.findByClienteId("cliente-1")).thenReturn(List.of(daEquipeA, daEquipeB));
+        when(repository.findByClienteIdAndStatus("cliente-1", StatusPedido.MODELAGEM))
+                .thenReturn(List.of(daEquipeA, daEquipeB));
+
+        assertEquals(2, service.listar("cliente-1", Role.CLIENTE).size());
+        assertEquals(2, service.listarPorStatus("cliente-1", Role.CLIENTE, StatusPedido.MODELAGEM).size());
+        // cliente não tem equipe e nunca recebe SEM_EQUIPE
+        verifyNoInteractions(equipeContexto);
     }
 
     @Test
-    void criarComClienteDaMesmaEquipeCopiaONome() {
-        Pedido pedido = new Pedido();
-        pedido.setUsuarioId("user-1");
-        pedido.setClienteId("cliente-1");
-        when(userRepository.findById("cliente-1")).thenReturn(Optional.of(cliente("cliente-1", "eq-1")));
+    void clienteAbrePedidoProprioDeQualquerEquipeMasNaoODeOutroCliente() {
+        Pedido proprio = pedidoDaEquipe("p-B", "eq-2");
+        proprio.setClienteId("cliente-1");
+        Pedido deOutro = pedidoDaEquipe("p-C", "eq-2");
+        deOutro.setClienteId("outro-cliente");
+        when(repository.findById("p-B")).thenReturn(Optional.of(proprio));
+        when(repository.findById("p-C")).thenReturn(Optional.of(deOutro));
+
+        assertTrue(service.buscarPorId("p-B", "cliente-1", Role.CLIENTE).isPresent());
+        assertTrue(service.buscarPorId("p-C", "cliente-1", Role.CLIENTE).isEmpty());
+        verifyNoInteractions(equipeContexto);
+    }
+
+    @Test
+    void equipeBNaoVePedidosDaEquipeADoMesmoCliente() {
+        // cliente-1 tem pedido nas duas equipes; a equipe B só enxerga o dela
+        Pedido daEquipeB = pedidoDaEquipe("p-B", "eq-2");
+        daEquipeB.setClienteId("cliente-1");
+        when(repository.findByEquipeId("eq-2")).thenReturn(List.of(daEquipeB));
+
+        assertEquals(List.of(daEquipeB), service.listar("user-9", Role.GERENTE));
+        assertTrue(service.buscarPorId("p-A", "user-9", Role.GERENTE).isEmpty());
+        verify(repository).findByIdAndEquipeId("p-A", "eq-2");
+        verify(repository, never()).findById(any());
+        verify(repository, never()).findByClienteId(any());
+    }
+
+    @Test
+    void vinculaClienteIndependenteDaEquipeDele() {
+        // clientes não pertencem a equipe: o equipeId deles é irrelevante
+        when(userRepository.findById("cliente-livre")).thenReturn(Optional.of(cliente("cliente-livre", null)));
+        when(userRepository.findById("cliente-x")).thenReturn(Optional.of(cliente("cliente-x", "eq-2")));
         when(repository.save(any(Pedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Pedido result = service.criar(pedido);
-
-        assertEquals("Cliente cliente-1", result.getCliente());
-        assertEquals("eq-1", result.getEquipeId());
-    }
-
-    @Test
-    void criarComClienteDeOutraEquipeOuSemEquipeFalhaComoNaoEncontrado() {
-        when(userRepository.findById("cliente-x")).thenReturn(Optional.of(cliente("cliente-x", "eq-2")));
-        when(userRepository.findById("cliente-livre")).thenReturn(Optional.of(cliente("cliente-livre", null)));
-
-        Pedido deOutraEquipe = new Pedido();
-        deOutraEquipe.setUsuarioId("user-1");
-        deOutraEquipe.setClienteId("cliente-x");
         Pedido semEquipe = new Pedido();
         semEquipe.setUsuarioId("user-1");
         semEquipe.setClienteId("cliente-livre");
+        Pedido comEquipeGravada = new Pedido();
+        comEquipeGravada.setUsuarioId("user-1");
+        comEquipeGravada.setClienteId("cliente-x");
 
+        assertEquals("Cliente cliente-livre", service.criar(semEquipe).getCliente());
+        assertEquals("Cliente cliente-x", service.criar(comEquipeGravada).getCliente());
+        assertEquals("eq-1", comEquipeGravada.getEquipeId());
+    }
+
+    @Test
+    void vincularUsuarioQueNaoEClienteOuInexistenteFalha() {
+        User tecnico = cliente("tec-1", "eq-1");
+        tecnico.setRole(Role.TECNICO);
+        when(userRepository.findById("tec-1")).thenReturn(Optional.of(tecnico));
+
+        Pedido comTecnico = new Pedido();
+        comTecnico.setUsuarioId("user-1");
+        comTecnico.setClienteId("tec-1");
+        Pedido comInexistente = new Pedido();
+        comInexistente.setUsuarioId("user-1");
+        comInexistente.setClienteId("nao-existe");
+
+        assertEquals("O usuário selecionado não possui a role CLIENTE",
+                assertThrows(RuntimeException.class, () -> service.criar(comTecnico)).getMessage());
         assertEquals("Cliente não encontrado",
-                assertThrows(RuntimeException.class, () -> service.criar(deOutraEquipe)).getMessage());
-        assertEquals("Cliente não encontrado",
-                assertThrows(RuntimeException.class, () -> service.criar(semEquipe)).getMessage());
+                assertThrows(RuntimeException.class, () -> service.criar(comInexistente)).getMessage());
         verify(repository, never()).save(any());
     }
 
     @Test
-    void edicaoQueMantemClienteAntigoSemEquipeContinuaPermitida() {
-        // vínculo feito antes do isolamento: o cliente não é da equipe, mas não foi trocado
+    void edicaoTrocaParaClienteDeQualquerEquipe() {
         Pedido pedido = pedidoDaEquipe("p-1", "eq-1");
-        pedido.setClienteId("cliente-livre");
         Pedido dados = new Pedido();
-        dados.setClienteId("cliente-livre");
+        dados.setClienteId("cliente-x");
         dados.setProjeto("Projeto B");
 
         when(repository.findByIdAndEquipeId("p-1", "eq-1")).thenReturn(Optional.of(pedido));
-        when(userRepository.findById("cliente-livre")).thenReturn(Optional.of(cliente("cliente-livre", null)));
+        when(userRepository.findById("cliente-x")).thenReturn(Optional.of(cliente("cliente-x", "eq-2")));
         when(repository.save(pedido)).thenReturn(pedido);
 
         Pedido result = service.atualizar("p-1", "user-1", Role.GERENTE, dados);
 
-        assertEquals("Projeto B", result.getProjeto());
-        assertEquals("Cliente cliente-livre", result.getCliente());
+        assertEquals("cliente-x", result.getClienteId());
+        assertEquals("Cliente cliente-x", result.getCliente());
+        assertEquals("eq-1", result.getEquipeId());
+    }
+
+    // =========================================================
+    // VALIDAÇÃO ANTES DE GRAVAR ARQUIVOS
+    // =========================================================
+
+    @Test
+    void prepararParaCriacaoRecusaSemEquipeOuClienteInvalido() {
+        Pedido semEquipe = new Pedido();
+        semEquipe.setUsuarioId("semEquipe");
+        assertThrows(SemEquipeException.class, () -> service.prepararParaCriacao(semEquipe));
+
+        Pedido clienteInvalido = new Pedido();
+        clienteInvalido.setUsuarioId("user-1");
+        clienteInvalido.setClienteId("nao-existe");
+        assertThrows(RuntimeException.class, () -> service.prepararParaCriacao(clienteInvalido));
+
+        verify(repository, never()).save(any());
     }
 
     @Test
-    void edicaoQueTrocaParaClienteDeOutraEquipeFalha() {
-        Pedido pedido = pedidoDaEquipe("p-1", "eq-1");
+    void validarAtualizacaoRecusaClienteOutraEquipeSemEquipeEClienteInvalido() {
         Pedido dados = new Pedido();
-        dados.setClienteId("cliente-x");
 
-        when(repository.findByIdAndEquipeId("p-1", "eq-1")).thenReturn(Optional.of(pedido));
-        when(userRepository.findById("cliente-x")).thenReturn(Optional.of(cliente("cliente-x", "eq-2")));
+        assertEquals("Cliente não possui permissão para alterar pedidos",
+                assertThrows(RuntimeException.class,
+                        () -> service.validarAtualizacao("p-1", "cliente-1", Role.CLIENTE, dados)).getMessage());
+        assertThrows(SemEquipeException.class,
+                () -> service.validarAtualizacao("p-1", "semEquipe", Role.GERENTE, dados));
+        assertEquals("Pedido não encontrado",
+                assertThrows(RuntimeException.class,
+                        () -> service.validarAtualizacao("p-1", "user-9", Role.GERENTE, dados)).getMessage());
 
-        RuntimeException ex = assertThrows(RuntimeException.class,
-                () -> service.atualizar("p-1", "user-1", Role.GERENTE, dados));
+        when(repository.findByIdAndEquipeId("p-1", "eq-1")).thenReturn(Optional.of(pedidoDaEquipe("p-1", "eq-1")));
+        Pedido comClienteInvalido = new Pedido();
+        comClienteInvalido.setClienteId("nao-existe");
+        assertEquals("Cliente não encontrado",
+                assertThrows(RuntimeException.class,
+                        () -> service.validarAtualizacao("p-1", "user-1", Role.GERENTE, comClienteInvalido)).getMessage());
 
-        assertEquals("Cliente não encontrado", ex.getMessage());
+        // pedido sem cliente continua permitido
+        service.validarAtualizacao("p-1", "user-1", Role.GERENTE, dados);
         verify(repository, never()).save(any());
     }
 }

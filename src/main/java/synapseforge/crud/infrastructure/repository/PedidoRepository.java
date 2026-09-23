@@ -1,6 +1,7 @@
 package synapseforge.crud.infrastructure.repository;
 
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 
@@ -20,14 +21,31 @@ public interface PedidoRepository extends MongoRepository<Pedido, String> {
             StatusPedido status
     );
 
-    List<Pedido> findByEquipeIdAndClienteId(
+    boolean existsByEquipeIdAndClienteId(
             String equipeId,
             String clienteId
     );
 
-    List<Pedido> findByEquipeIdAndClienteIdAndStatus(
-            String equipeId,
+    // Só o clienteId dos pedidos da equipe: base da lista "clientes da equipe"
+    @Query(
+            value = "{ 'equipeId': ?0, 'clienteId': { $ne: null } }",
+            fields = "{ 'clienteId': 1 }"
+    )
+    List<Pedido> findClienteIdsByEquipeId(String equipeId);
+
+    // Cliente não pertence a equipe: enxerga os próprios pedidos de
+    // qualquer oficina, sempre pelo clienteId.
+
+    List<Pedido> findByClienteId(String clienteId);
+
+    List<Pedido> findByClienteIdAndStatus(
             String clienteId,
             StatusPedido status
+    );
+
+    boolean existsByEquipeIdAndClienteIdAndMaterialId(
+            String equipeId,
+            String clienteId,
+            String materialId
     );
 }

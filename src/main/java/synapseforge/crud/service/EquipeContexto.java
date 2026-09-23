@@ -17,6 +17,9 @@ import java.util.Optional;
  * <p>
  * Ordem de resolução: User.equipeId; se vazio e o usuário for GERENTE/ADMIN, a equipe que
  * ele administra (Equipe.gerenteId), pois quem cria a equipe hoje não recebe equipeId.
+ * <p>
+ * CLIENTE nunca pertence a uma equipe (mesmo com equipeId gravado): o vínculo do cliente
+ * com as oficinas é só pelos pedidos (Pedido.clienteId).
  */
 @Component
 @RequiredArgsConstructor
@@ -33,6 +36,9 @@ public class EquipeContexto {
     }
 
     public Optional<String> equipeDe(User usuario) {
+        if (usuario.getRole() == Role.CLIENTE) {
+            return Optional.empty();
+        }
         if (usuario.getEquipeId() != null && !usuario.getEquipeId().isBlank()) {
             return Optional.of(usuario.getEquipeId());
         }

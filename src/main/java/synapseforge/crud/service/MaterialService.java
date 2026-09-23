@@ -7,6 +7,7 @@ import synapseforge.crud.DTO.Material.MaterialResponseDTO;
 import synapseforge.crud.infrastructure.entity.Material;
 import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import synapseforge.crud.infrastructure.repository.MaterialRepository;
+import synapseforge.crud.infrastructure.repository.PedidoRepository;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -18,6 +19,7 @@ public class MaterialService {
 
     private final MaterialRepository repository;
     private final EquipeContexto equipeContexto;
+    private final PedidoRepository pedidoRepository;
 
     public MaterialResponseDTO criar(MaterialRequestDTO dto, String usuarioId) {
         Material material = new Material();
@@ -44,9 +46,15 @@ public class MaterialService {
     }
 
     public MaterialResponseDTO buscarPorId(String id, String usuarioId) {
-        // leitura de um registro: sem equipe, simplesmente não existe
+        // leitura de um registro: sem equipe, simplesmente não existe. Exceção: o cliente
+        // (que não tem equipe) lê o material de um pedido em que ele é o cliente, para o
+        // detalhe do pedido mostrar o nome do material; pedido e material da mesma equipe.
         Material material = equipeContexto.equipeDe(usuarioId)
                 .flatMap(equipeId -> repository.findByIdAndEquipeId(id, equipeId))
+                .or(() -> repository.findById(id)
+                        .filter(m -> m.getEquipeId() != null
+                                && pedidoRepository.existsByEquipeIdAndClienteIdAndMaterialId(
+                                        m.getEquipeId(), usuarioId, id)))
                 .orElseThrow(() -> new RuntimeException("Material não encontrado"));
         return toResponseDTO(material);
     }
