@@ -16,6 +16,7 @@ import synapseforge.crud.infrastructure.repository.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -414,6 +415,73 @@ public class ConviteEquipeService {
 
 
         return convite;
+    }
+
+
+    // =========================================================
+    // CONVITE PENDENTE DO USUÁRIO LOGADO (SYN-101)
+    // =========================================================
+
+    /*
+     * O convidado também vê o convite dentro do app, sem depender do e-mail.
+     * Cada usuário tem no máximo um convite pendente (criarConvite garante).
+     * Convite vencido é marcado como EXPIRADO e não aparece.
+     */
+    public Optional<ConviteEquipe> buscarConvitePendenteDoUsuario(
+            String usuarioId
+    ) {
+
+        return conviteRepository.findByUsuarioIdAndStatus(
+                        usuarioId,
+                        StatusConviteEquipe.PENDENTE
+                )
+                .filter(convite -> {
+
+                    if (convite.getExpiraEm() != null
+                            && convite.getExpiraEm()
+                            .isBefore(LocalDateTime.now())) {
+
+                        convite.setStatus(
+                                StatusConviteEquipe.EXPIRADO
+                        );
+
+                        convite.setRespondidoEm(
+                                LocalDateTime.now()
+                        );
+
+                        conviteRepository.save(convite);
+
+                        return false;
+                    }
+
+                    return true;
+                });
+    }
+
+    public User aceitarConviteDoUsuario(String usuarioId) {
+
+        ConviteEquipe convite =
+                buscarConvitePendenteDoUsuario(usuarioId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Convite não encontrado"
+                                )
+                        );
+
+        return aceitarConvite(convite.getToken());
+    }
+
+    public User recusarConviteDoUsuario(String usuarioId) {
+
+        ConviteEquipe convite =
+                buscarConvitePendenteDoUsuario(usuarioId)
+                        .orElseThrow(() ->
+                                new RuntimeException(
+                                        "Convite não encontrado"
+                                )
+                        );
+
+        return recusarConvite(convite.getToken());
     }
 
 
