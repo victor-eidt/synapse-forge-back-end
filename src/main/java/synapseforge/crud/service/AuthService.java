@@ -5,6 +5,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.User.LoginDTO;
 import synapseforge.crud.DTO.User.UserRequestDTO;
+import synapseforge.crud.infrastructure.entity.Equipe;
 import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.UserRepository;
@@ -22,6 +23,7 @@ public class AuthService {
     private final BCryptPasswordEncoder encoder;
     private final JwtService jwtService;
     private final EmailService emailService;
+    private final EquipeService equipeService;
 
     // =========================================================
     // CADASTRO DE CLIENTE
@@ -54,6 +56,19 @@ public class AuthService {
                 .ifPresent(u -> {
                     throw new RuntimeException("Email já cadastrado");
                 });
+
+        /*
+         * Gerente nasce com a loja (equipe): no SaaS todo dado pertence a
+         * uma equipe, então não existe gerente sem equipe.
+         */
+        String nomeEquipe =
+                dto.getNomeEquipe() == null
+                        ? ""
+                        : dto.getNomeEquipe().trim();
+
+        if (role == Role.GERENTE && nomeEquipe.isEmpty()) {
+            throw new RuntimeException("Informe o nome da loja");
+        }
 
         String confirmToken = UUID.randomUUID().toString();
 
@@ -90,6 +105,21 @@ public class AuthService {
 
         repository.save(user);
 
+        Equipe equipe = null;
+
+        if (role == Role.GERENTE) {
+
+            equipe = equipeService.criar(
+                    user.getId(),
+                    nomeEquipe,
+                    null,
+                    null
+            );
+
+            user.setEquipeId(equipe.getId());
+            repository.save(user);
+        }
+
         try {
 
             emailService.enviarConfirmacaoCadastro(
@@ -99,6 +129,10 @@ public class AuthService {
             );
 
         } catch (RuntimeException e) {
+
+            if (equipe != null) {
+                equipeService.deletar(equipe.getId(), user.getId());
+            }
 
             repository.delete(user);
             throw e;
