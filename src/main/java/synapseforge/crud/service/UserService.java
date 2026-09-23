@@ -5,6 +5,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import synapseforge.crud.DTO.User.ClienteResumoDTO;
+import synapseforge.crud.DTO.User.PerfilUpdateRequestDTO;
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.Pedido;
@@ -45,7 +46,7 @@ public class UserService {
         User user = new User();
 
         user.setNome(dto.getNome());
-        user.setEmail(dto.getEmail());
+        user.setEmail(UserRepository.normalizarEmail(dto.getEmail()));
         user.setSenha(dto.getSenha());
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
@@ -82,7 +83,7 @@ public class UserService {
 
     public User criar(User user) {
 
-        if (repository.findByEmail(user.getEmail()).isPresent()) {
+        if (repository.buscarPorEmail(user.getEmail()).isPresent()) {
             throw new RuntimeException("Email já cadastrado");
         }
 
@@ -206,10 +207,19 @@ public class UserService {
 
         User user = alvoEditavel(solicitanteId, id);
 
-        user.setNome(dto.getNome());
-        user.setEmail(dto.getEmail());
-        user.setCpf(dto.getCpf());
-        user.setTelefone(dto.getTelefone());
+        // Campo nulo = não mexer (antes virava null no banco).
+        if (dto.getNome() != null) {
+            user.setNome(dto.getNome());
+        }
+        if (dto.getEmail() != null) {
+            definirEmail(user, dto.getEmail());
+        }
+        if (dto.getCpf() != null) {
+            user.setCpf(dto.getCpf());
+        }
+        if (dto.getTelefone() != null) {
+            user.setTelefone(dto.getTelefone());
+        }
 
 
         // Só altera a role se uma nova role foi enviada
@@ -345,8 +355,14 @@ public class UserService {
                 );
 
 
+        novoEmail = UserRepository.normalizarEmail(novoEmail);
+
+        if (novoEmail == null || novoEmail.isBlank()) {
+            throw new RuntimeException("Informe o novo e-mail");
+        }
+
         if (
-                repository.findByEmail(novoEmail)
+                repository.buscarPorEmail(novoEmail)
                         .isPresent()
         ) {
 
@@ -445,7 +461,7 @@ public class UserService {
 
     public User atualizarProprioPerfil(
             String id,
-            UserRequestDTO dto
+            PerfilUpdateRequestDTO dto
     ) {
 
         User user = repository.findById(id)
@@ -455,15 +471,33 @@ public class UserService {
                         )
                 );
 
-        user.setNome(dto.getNome());
-        user.setEmail(dto.getEmail());
-        user.setCpf(dto.getCpf());
-        user.setTelefone(dto.getTelefone());
+        // Só o que veio preenchido muda: antes um campo ausente virava null no banco
+        // (salvar só o nome apagava e-mail, CPF e telefone).
+        if (dto.getNome() != null) {
+            if (dto.getNome().isBlank()) {
+                throw new RuntimeException("O nome é obrigatório");
+            }
+            user.setNome(dto.getNome().trim());
+        }
 
-        if (
-                dto.getSenha() != null
-                        && !dto.getSenha().isBlank()
-        ) {
+        if (dto.getCpf() != null) {
+            user.setCpf(dto.getCpf().trim());
+        }
+
+        if (dto.getTelefone() != null) {
+            user.setTelefone(dto.getTelefone().trim());
+        }
+
+        if (dto.getSenha() != null && !dto.getSenha().isBlank()) {
+
+            if (dto.getSenhaAtual() == null
+                    || !encoder.matches(dto.getSenhaAtual(), user.getSenha())) {
+                throw new RuntimeException("Senha atual incorreta");
+            }
+
+            if (dto.getSenha().length() < 6) {
+                throw new RuntimeException("A nova senha deve ter pelo menos 6 caracteres");
+            }
 
             user.setSenha(
                     encoder.encode(dto.getSenha())
@@ -475,6 +509,18 @@ public class UserService {
         );
 
         return repository.save(user);
+    }
+
+
+    /** Troca o e-mail já normalizado, recusando um que outra conta use (sem diferenciar caixa). */
+    void definirEmail(User user, String email) {
+        String normalizado = UserRepository.normalizarEmail(email);
+        repository.buscarPorEmail(normalizado)
+                .filter(outro -> !outro.getId().equals(user.getId()))
+                .ifPresent(outro -> {
+                    throw new RuntimeException("Este email já está em uso");
+                });
+        user.setEmail(normalizado);
     }
 
 

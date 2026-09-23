@@ -168,7 +168,7 @@ public class EquipeController {
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @PostMapping("/{equipeId}/convites/{usuarioId}")
-    public ConviteEquipe criarConvite(
+    public ConviteEquipeResponseDTO criarConvite(
             @PathVariable String equipeId,
             @PathVariable String usuarioId,
             Authentication auth
@@ -176,10 +176,14 @@ public class EquipeController {
 
         String gerenteId = (String) auth.getPrincipal();
 
-        return conviteEquipeService.criarConvite(
-                equipeId,
-                gerenteId,
-                usuarioId
+        // DTO, não a entidade: a entidade carrega o token do convite, e com ele o
+        // gerente poderia aceitar no lugar do convidado (a rota por token é pública).
+        return conviteEquipeService.toResponseDTO(
+                conviteEquipeService.criarConvite(
+                        equipeId,
+                        gerenteId,
+                        usuarioId
+                )
         );
     }
 
@@ -366,7 +370,7 @@ public class EquipeController {
 
     @PreAuthorize("hasRole('TECNICO')")
     @DeleteMapping("/minha/integrantes")
-    public UserResponseDTO sairDaEquipe(
+    public Map<String, String> sairDaEquipe(
             Authentication auth
     ) {
 
@@ -389,7 +393,17 @@ public class EquipeController {
                         usuario.getEquipeId()
                 );
 
-        return userService.toResponseDTO(atualizado);
+        // O papel mudou (TECNICO -> CLIENTE): devolve um token com o papel atual,
+        // como o aceitar do convite faz no sentido contrário.
+        return Map.of(
+                "access_token",
+                jwtService.generateToken(
+                        atualizado.getId(),
+                        atualizado.getRole()
+                ),
+                "user_id",
+                atualizado.getId()
+        );
     }
 
 
@@ -574,9 +588,12 @@ public class EquipeController {
     @PutMapping("/minha/integrantes/{usuarioId}/funcao-visual")
     public UserResponseDTO atualizarFuncaoVisual(
             @PathVariable String usuarioId,
-            @RequestBody String funcaoVisual,
+            @RequestBody(required = false) String corpo,
             Authentication auth
     ) {
+
+        // O front manda JSON.stringify(valor): sem isso o banco guardava "Pintor" com aspas.
+        String funcaoVisual = textoDoCorpo(corpo);
 
         String gerenteId =
                 (String) auth.getPrincipal();
@@ -640,5 +657,22 @@ public class EquipeController {
         return userService.toResponseDTO(
                 atualizado
         );
+    }
+
+
+    /** Aceita o corpo como texto puro ou como string JSON ("Pintor"); vazio vira null. */
+    static String textoDoCorpo(String corpo) {
+        if (corpo == null) {
+            return null;
+        }
+        String texto = corpo.trim();
+        if (texto.length() >= 2 && texto.startsWith("\"") && texto.endsWith("\"")) {
+            try {
+                texto = new com.fasterxml.jackson.databind.ObjectMapper().readValue(texto, String.class);
+            } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+                texto = texto.substring(1, texto.length() - 1);
+            }
+        }
+        return texto.isBlank() ? null : texto.trim();
     }
 }

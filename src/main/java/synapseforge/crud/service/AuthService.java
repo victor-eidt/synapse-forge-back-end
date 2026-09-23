@@ -52,7 +52,7 @@ public class AuthService {
             Role role
     ) {
 
-        repository.findByEmail(dto.getEmail())
+        repository.buscarPorEmail(dto.getEmail())
                 .ifPresent(u -> {
                     throw new RuntimeException("Email já cadastrado");
                 });
@@ -74,8 +74,8 @@ public class AuthService {
 
         User user = new User();
 
-        user.setNome(dto.getNome());
-        user.setEmail(dto.getEmail());
+        user.setNome(dto.getNome() == null ? null : dto.getNome().trim());
+        user.setEmail(UserRepository.normalizarEmail(dto.getEmail()));
         user.setSenha(encoder.encode(dto.getSenha()));
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
@@ -150,7 +150,7 @@ public class AuthService {
 
     public Map<String, String> login(LoginDTO dto) {
 
-        User user = repository.findByEmail(dto.getEmail())
+        User user = repository.buscarPorEmail(dto.getEmail())
                 .orElseThrow(
                         () -> new RuntimeException(
                                 "Usuário não encontrado"
@@ -294,7 +294,7 @@ public class AuthService {
 
         // Não revela se o email existe:
         // apenas envia o link quando houver conta.
-        repository.findByEmail(email)
+        repository.buscarPorEmail(email)
                 .ifPresent(user -> {
 
                     String token =

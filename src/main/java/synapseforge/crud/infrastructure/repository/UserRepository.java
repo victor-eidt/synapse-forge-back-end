@@ -6,7 +6,9 @@ import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.User;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 public interface UserRepository extends MongoRepository<User, String> {
 
@@ -31,5 +33,22 @@ public interface UserRepository extends MongoRepository<User, String> {
     @Query("{ 'email': { $regex: ?0, $options: 'i' } }")
     List<User> findByEmailPadraoIgnorandoCaixa(String padraoEmail);
 
+    /**
+     * Busca por e-mail sem diferenciar caixa e ignorando espaços nas pontas.
+     * Contas antigas podem ter maiúsculas gravadas; as novas já nascem normalizadas.
+     */
+    default Optional<User> buscarPorEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+        return findByEmailPadraoIgnorandoCaixa("^" + Pattern.quote(email.trim()) + "$")
+                .stream()
+                .findFirst();
+    }
+
+    /** Forma canônica de gravar e-mail: sem espaços nas pontas e em minúsculas. */
+    static String normalizarEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
 
 }
