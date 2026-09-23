@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import synapseforge.crud.DTO.Equipe.ConviteEquipeResponseDTO;
 import synapseforge.crud.DTO.Equipe.EquipeRequestDTO;
 import synapseforge.crud.DTO.Equipe.EquipeResponseDTO;
+import synapseforge.crud.DTO.Equipe.MeuConviteResponseDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.ConviteEquipe;
 import synapseforge.crud.infrastructure.entity.Equipe;
@@ -254,7 +255,7 @@ public class EquipeController {
     // públicas (link do e-mail); estas exigem login.
 
     @GetMapping("/meu-convite")
-    public ResponseEntity<ConviteEquipeResponseDTO> meuConvite(
+    public ResponseEntity<MeuConviteResponseDTO> meuConvite(
             Authentication auth
     ) {
 
@@ -262,7 +263,12 @@ public class EquipeController {
                 .buscarConvitePendenteDoUsuario(
                         (String) auth.getPrincipal()
                 )
-                .map(conviteEquipeService::toResponseDTO)
+                .map(convite -> new MeuConviteResponseDTO(
+                        conviteEquipeService.toResponseDTO(convite),
+                        service.buscarPorId(convite.getEquipeId())
+                                .map(service::toResponseDTO)
+                                .orElse(null)
+                ))
                 .map(ResponseEntity::ok)
                 .orElseGet(() ->
                         ResponseEntity.noContent().build()
