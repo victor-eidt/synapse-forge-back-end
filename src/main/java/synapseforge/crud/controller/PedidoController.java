@@ -187,6 +187,12 @@ public class PedidoController {
                         usuarioId
                 );
 
+        // Equipe e cliente validados ANTES de gravar no GridFS:
+        // requisição recusada não deixa arquivo órfão.
+        service.prepararParaCriacao(
+                pedido
+        );
+
 
         // =====================================================
         // ARQUIVO 3D
@@ -607,6 +613,21 @@ public class PedidoController {
 
         preencherDadosOrcamento(dto, materialId, volumeCm3, tempoImpressaoHoras, tempoMaoDeObraHoras, custoMaquinaHora, custoMaoDeObraHora, margemLucro, custoMaterial, custoMaquina, custoMaoDeObra, custoTotal, precoFinal);
 
+        Pedido dados =
+                service.toEntity(
+                        dto,
+                        usuarioId
+                );
+
+        // Perfil, equipe, pedido e cliente validados ANTES de gravar
+        // no GridFS: requisição recusada não deixa arquivo órfão.
+        service.validarAtualizacao(
+                id,
+                usuarioId,
+                role,
+                dados
+        );
+
 
         // =====================================================
         // NOVO ARQUIVO 3D
@@ -669,10 +690,7 @@ public class PedidoController {
                         id,
                         usuarioId,
                         role,
-                        service.toEntity(
-                                dto,
-                                usuarioId
-                        ),
+                        dados,
                         novoObjetoId,
                         removerObjeto3D,
                         novasImagensIds,

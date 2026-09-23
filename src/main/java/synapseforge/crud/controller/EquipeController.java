@@ -115,25 +115,6 @@ public class EquipeController {
 
 
     // =========================================================
-    // CLIENTES DISPONÍVEIS PARA CONVITE
-    // =========================================================
-
-    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
-    @GetMapping("/minha/clientes-disponiveis")
-    public List<UserResponseDTO> listarClientesDisponiveis(
-            Authentication auth
-    ) {
-
-        List<User> clientes =
-                userService.listarClientesDisponiveisParaEquipe();
-
-        return clientes.stream()
-                .map(userService::toResponseDTO)
-                .toList();
-    }
-
-
-    // =========================================================
     // INTEGRANTES DA EQUIPE
     // =========================================================
 

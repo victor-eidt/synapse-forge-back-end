@@ -7,5 +7,5 @@ import java.util.Optional;
 
 public interface ConsumoPedidoRepository extends MongoRepository<ConsumoPedido, String> {
 
-    Optional<ConsumoPedido> findByPedidoId(String pedidoId);
+    Optional<ConsumoPedido> findByPedidoIdAndEquipeId(String pedidoId, String equipeId);
 }

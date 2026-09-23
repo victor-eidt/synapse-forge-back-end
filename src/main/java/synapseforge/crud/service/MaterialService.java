@@ -7,18 +7,23 @@ import synapseforge.crud.DTO.Material.MaterialResponseDTO;
 import synapseforge.crud.infrastructure.entity.Material;
 import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import synapseforge.crud.infrastructure.repository.MaterialRepository;
+import synapseforge.crud.infrastructure.repository.PedidoRepository;
 
 import java.math.BigDecimal;
 import java.util.List;
 
+// Materiais (e seus saldos) são da equipe: cada oficina tem o próprio estoque.
 @Service
 @RequiredArgsConstructor
 public class MaterialService {
 
     private final MaterialRepository repository;
+    private final EquipeContexto equipeContexto;
+    private final PedidoRepository pedidoRepository;
 
-    public MaterialResponseDTO criar(MaterialRequestDTO dto) {
+    public MaterialResponseDTO criar(MaterialRequestDTO dto, String usuarioId) {
         Material material = new Material();
+        material.setEquipeId(equipeContexto.equipeObrigatoria(usuarioId));
         aplicarDados(material, dto);
         if (material.getUnidade() == null) {
             material.setUnidade(UnidadeMedida.G);
@@ -31,30 +36,45 @@ public class MaterialService {
         return toResponseDTO(repository.save(material));
     }
 
-    public List<MaterialResponseDTO> listarAtivos() {
-        return repository.findByAtivoTrue().stream()
+    public List<MaterialResponseDTO> listarAtivos(String usuarioId) {
+        return equipeContexto.equipeDe(usuarioId)
+                .map(repository::findByEquipeIdAndAtivoTrue)
+                .orElse(List.of())
+                .stream()
                 .map(this::toResponseDTO)
                 .toList();
     }
 
-    public MaterialResponseDTO buscarPorId(String id) {
-        return toResponseDTO(buscarEntidade(id));
+    public MaterialResponseDTO buscarPorId(String id, String usuarioId) {
+        // leitura de um registro: sem equipe, simplesmente não existe. Exceção: o cliente
+        // (que não tem equipe) lê o material de um pedido em que ele é o cliente, para o
+        // detalhe do pedido mostrar o nome do material; pedido e material da mesma equipe.
+        Material material = equipeContexto.equipeDe(usuarioId)
+                .flatMap(equipeId -> repository.findByIdAndEquipeId(id, equipeId))
+                .or(() -> repository.findById(id)
+                        .filter(m -> m.getEquipeId() != null
+                                && pedidoRepository.existsByEquipeIdAndClienteIdAndMaterialId(
+                                        m.getEquipeId(), usuarioId, id)))
+                .orElseThrow(() -> new RuntimeException("Material não encontrado"));
+        return toResponseDTO(material);
     }
 
-    public MaterialResponseDTO atualizar(String id, MaterialRequestDTO dto) {
-        Material material = buscarEntidade(id);
+    public MaterialResponseDTO atualizar(String id, MaterialRequestDTO dto, String usuarioId) {
+        Material material = buscarEntidade(id, usuarioId);
         aplicarDados(material, dto);
         return toResponseDTO(repository.save(material));
     }
 
-    public void inativar(String id) {
-        Material material = buscarEntidade(id);
+    public void inativar(String id, String usuarioId) {
+        Material material = buscarEntidade(id, usuarioId);
         material.setAtivo(false);
         repository.save(material);
     }
 
-    private Material buscarEntidade(String id) {
-        return repository.findById(id)
+    // escrita: sem equipe -> 403 SEM_EQUIPE; material de outra equipe -> não encontrado
+    private Material buscarEntidade(String id, String usuarioId) {
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        return repository.findByIdAndEquipeId(id, equipeId)
                 .orElseThrow(() -> new RuntimeException("Material não encontrado"));
     }
 

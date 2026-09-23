@@ -2,10 +2,12 @@ package synapseforge.crud.controller;
 
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
 
+import synapseforge.crud.DTO.User.ClienteResumoDTO;
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.User;
@@ -46,9 +48,11 @@ public class UserController {
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @GetMapping
-    public List<UserResponseDTO> listar() {
+    public List<UserResponseDTO> listar(
+            Authentication auth
+    ) {
 
-        return service.listar()
+        return service.listar((String) auth.getPrincipal())
                 .stream()
                 .map(service::toResponseDTO)
                 .toList();
@@ -56,17 +60,49 @@ public class UserController {
 
 
     // =========================================================
-    // LISTAR CLIENTES
+    // LISTAR CLIENTES DA EQUIPE
     // =========================================================
+    //
+    // Clientes com pelo menos um pedido na equipe de quem consulta.
+    //
 
     @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
     @GetMapping("/clientes")
-    public List<UserResponseDTO> listarClientes() {
+    public List<ClienteResumoDTO> listarClientes(
+            Authentication auth
+    ) {
 
-        return service.listarClientes()
+        return service.listarClientes((String) auth.getPrincipal())
                 .stream()
-                .map(service::toResponseDTO)
+                .map(service::toClienteResumoDTO)
                 .toList();
+    }
+
+
+    // =========================================================
+    // BUSCAR CLIENTE POR EMAIL EXATO
+    // =========================================================
+    //
+    // Para vincular um cliente novo a um pedido. 404 quando não
+    // existe ou não é CLIENTE.
+    //
+
+    @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
+    @GetMapping("/clientes/buscar")
+    public ResponseEntity<ClienteResumoDTO> buscarClientePorEmail(
+            @RequestParam String email,
+            Authentication auth
+    ) {
+
+        return service.buscarClientePorEmail(
+                        (String) auth.getPrincipal(),
+                        email
+                )
+                .map(service::toClienteResumoDTO)
+                .map(ResponseEntity::ok)
+                .orElseGet(() ->
+                        ResponseEntity.notFound().build()
+                );
     }
 
 
@@ -128,11 +164,16 @@ public class UserController {
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @GetMapping("/{id}")
     public UserResponseDTO buscar(
-            @PathVariable String id
+            @PathVariable String id,
+            Authentication auth
     ) {
 
+        // próprio usuário, colegas de equipe ou clientes com pedido na equipe
         User user =
-                service.buscarPorId(id)
+                service.buscarParaUsuario(
+                                (String) auth.getPrincipal(),
+                                id
+                        )
                         .orElseThrow(() ->
                                 new RuntimeException(
                                         "Usuário não encontrado"
@@ -153,11 +194,14 @@ public class UserController {
     @PutMapping("/{id}")
     public UserResponseDTO atualizar(
             @PathVariable String id,
-            @RequestBody UserRequestDTO dto
+            @RequestBody UserRequestDTO dto,
+            Authentication auth
     ) {
 
+        // próprio usuário ou colegas de equipe
         User atualizado =
                 service.atualizar(
+                        (String) auth.getPrincipal(),
                         id,
                         dto
                 );
@@ -175,10 +219,12 @@ public class UserController {
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @DeleteMapping("/{id}")
     public void deletar(
-            @PathVariable String id
+            @PathVariable String id,
+            Authentication auth
     ) {
 
-        service.deletar(id);
+        // próprio usuário ou colegas de equipe
+        service.deletar((String) auth.getPrincipal(), id);
     }
 
 
@@ -213,10 +259,11 @@ public class UserController {
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
     @GetMapping("/search")
     public List<UserResponseDTO> buscarPorNome(
-            @RequestParam String nome
+            @RequestParam String nome,
+            Authentication auth
     ) {
 
-        return service.buscarPorNome(nome)
+        return service.buscarPorNome((String) auth.getPrincipal(), nome)
                 .stream()
                 .map(service::toResponseDTO)
                 .toList();
@@ -230,10 +277,13 @@ public class UserController {
     @PostMapping("/{id}/solicitar-mudanca-email")
     public Map<String, String> solicitarMudancaEmail(
             @PathVariable String id,
-            @RequestBody Map<String, String> body
+            @RequestBody Map<String, String> body,
+            Authentication auth
     ) {
 
+        // somente o próprio usuário
         return service.solicitarMudancaEmail(
+                (String) auth.getPrincipal(),
                 id,
                 body.get("novoEmail")
         );

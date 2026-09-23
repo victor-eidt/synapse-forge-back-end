@@ -15,9 +15,11 @@ import synapseforge.crud.infrastructure.repository.MisturaRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+// Misturas são da equipe e só podem usar cores da paleta da mesma equipe.
 @Service
 public class MisturaService {
 
@@ -27,10 +29,15 @@ public class MisturaService {
     @Autowired
     private CorRepository corRepository;
 
+    @Autowired
+    private EquipeContexto equipeContexto;
+
     public MisturaResponseDTO criar(MisturaRequestDTO dto, String usuarioId) {
-        Map<String, Cor> cores = validarECarregarCores(dto, usuarioId);
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        Map<String, Cor> cores = validarECarregarCores(dto, equipeId);
 
         Mistura mistura = new Mistura();
+        mistura.setEquipeId(equipeId);
         mistura.setUsuarioId(usuarioId);
         mistura.setCriadoEm(LocalDateTime.now());
         aplicar(mistura, dto, cores);
@@ -39,35 +46,43 @@ public class MisturaService {
     }
 
     public List<MisturaResponseDTO> listar(String usuarioId) {
-        return repository.findByUsuarioId(usuarioId).stream()
-                .map(m -> toResponseDTO(m, carregarCores(m, usuarioId)))
+        Optional<String> equipe = equipeContexto.equipeDe(usuarioId);
+        if (equipe.isEmpty()) {
+            return List.of();
+        }
+        String equipeId = equipe.get();
+        return repository.findByEquipeId(equipeId).stream()
+                .map(m -> toResponseDTO(m, carregarCores(m, equipeId)))
                 .toList();
     }
 
     public MisturaResponseDTO buscarPorId(String id, String usuarioId) {
-        Mistura mistura = buscarEntidade(id, usuarioId);
-        return toResponseDTO(mistura, carregarCores(mistura, usuarioId));
+        // leitura de um registro: sem equipe, simplesmente não existe
+        String equipeId = equipeContexto.equipeDe(usuarioId)
+                .orElseThrow(() -> new RuntimeException("Mistura não encontrada"));
+        Mistura mistura = buscarEntidade(id, equipeId);
+        return toResponseDTO(mistura, carregarCores(mistura, equipeId));
     }
 
     public MisturaResponseDTO atualizar(String id, String usuarioId, MisturaRequestDTO dto) {
-        Mistura mistura = buscarEntidade(id, usuarioId);
-        Map<String, Cor> cores = validarECarregarCores(dto, usuarioId);
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        Mistura mistura = buscarEntidade(id, equipeId);
+        Map<String, Cor> cores = validarECarregarCores(dto, equipeId);
         aplicar(mistura, dto, cores);
         return toResponseDTO(repository.save(mistura), cores);
     }
 
     public void deletar(String id, String usuarioId) {
-        buscarEntidade(id, usuarioId);
+        buscarEntidade(id, equipeContexto.equipeObrigatoria(usuarioId));
         repository.deleteById(id);
     }
 
-    private Mistura buscarEntidade(String id, String usuarioId) {
-        return repository.findById(id)
-                .filter(m -> usuarioId.equals(m.getUsuarioId()))
+    private Mistura buscarEntidade(String id, String equipeId) {
+        return repository.findByIdAndEquipeId(id, equipeId)
                 .orElseThrow(() -> new RuntimeException("Mistura não encontrada"));
     }
 
-    private Map<String, Cor> validarECarregarCores(MisturaRequestDTO dto, String usuarioId) {
+    private Map<String, Cor> validarECarregarCores(MisturaRequestDTO dto, String equipeId) {
         long distintas = dto.getItens().stream().map(ItemMisturaRequestDTO::getCorId).distinct().count();
         if (distintas != dto.getItens().size()) {
             throw new RuntimeException("A mesma cor não pode aparecer mais de uma vez na mistura");
@@ -79,16 +94,14 @@ public class MisturaService {
         }
 
         return dto.getItens().stream()
-                .map(item -> corRepository.findById(item.getCorId())
-                        .filter(c -> usuarioId.equals(c.getUsuarioId()))
+                .map(item -> corRepository.findByIdAndEquipeId(item.getCorId(), equipeId)
                         .orElseThrow(() -> new RuntimeException("Cor não encontrada na paleta")))
                 .collect(Collectors.toMap(Cor::getId, Function.identity()));
     }
 
-    private Map<String, Cor> carregarCores(Mistura mistura, String usuarioId) {
+    private Map<String, Cor> carregarCores(Mistura mistura, String equipeId) {
         List<String> ids = mistura.getItens().stream().map(ItemMistura::getCorId).toList();
-        return corRepository.findAllById(ids).stream()
-                .filter(c -> usuarioId.equals(c.getUsuarioId()))
+        return corRepository.findByIdInAndEquipeId(ids, equipeId).stream()
                 .collect(Collectors.toMap(Cor::getId, Function.identity()));
     }
 
