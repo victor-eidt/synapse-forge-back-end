@@ -8,6 +8,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.entity.Role;
+import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 
 import java.util.List;
@@ -29,13 +30,16 @@ class UserServiceUnitTest {
     @Mock
     private EquipeContexto equipeContexto;
 
+    @Mock
+    private PedidoRepository pedidoRepository;
+
     private BCryptPasswordEncoder encoder;
     private UserService userService;
 
     @BeforeEach
     void setup() {
         encoder = new BCryptPasswordEncoder();
-        userService = new UserService(repository, encoder, emailService, equipeContexto);
+        userService = new UserService(repository, encoder, emailService, equipeContexto, pedidoRepository);
     }
 
     @Test
@@ -53,14 +57,14 @@ class UserServiceUnitTest {
     void atualizarThrowsWhenNotFound() {
         when(repository.findById("nope")).thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () -> userService.atualizar("nope", null));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> userService.atualizar("nope", "nope", null));
         assertTrue(ex.getMessage().toLowerCase().contains("não encontrado") || ex.getMessage().toLowerCase().contains("nao encontrado"));
     }
 
     @Test
     void deletarCallsRepositoryDelete() {
-        when(repository.existsById("del-1")).thenReturn(true);
-        userService.deletar("del-1");
+        when(repository.findById("del-1")).thenReturn(Optional.of(new User()));
+        userService.deletar("del-1", "del-1");
         verify(repository).deleteById("del-1");
     }
 

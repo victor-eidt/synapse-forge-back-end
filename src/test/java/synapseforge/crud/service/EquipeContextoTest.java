@@ -116,4 +116,14 @@ class EquipeContextoTest {
         assertEquals("SEM_EQUIPE", ex.getCodigo());
         assertEquals("Crie ou entre em uma equipe para acessar estes dados.", ex.getMessage());
     }
+
+    @Test
+    void clienteNuncaTemEquipeMesmoComEquipeIdGravado() {
+        // cliente se vincula às oficinas só pelos pedidos
+        when(userRepository.findById("c-1")).thenReturn(Optional.of(usuario("c-1", Role.CLIENTE, "eq-1")));
+
+        assertTrue(equipeContexto.equipeDe("c-1").isEmpty());
+        assertThrows(SemEquipeException.class, () -> equipeContexto.equipeObrigatoria("c-1"));
+        verifyNoInteractions(equipeRepository);
+    }
 }
