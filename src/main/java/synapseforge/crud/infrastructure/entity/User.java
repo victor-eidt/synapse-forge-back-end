@@ -26,6 +26,8 @@ public class User {
     private String cpf;
     private String telefone;
     private Role role;
+    private String equipeId;
+    private String funcaoVisual;
 
     // Controle de login
     private int tentativasLogin = 0;

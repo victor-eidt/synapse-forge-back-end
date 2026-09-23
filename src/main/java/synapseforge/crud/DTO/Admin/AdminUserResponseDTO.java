@@ -1,11 +1,13 @@
-package synapseforge.crud.DTO.User;
+package synapseforge.crud.DTO.Admin;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.time.LocalDateTime;
+
 @Getter
 @AllArgsConstructor
-public class UserResponseDTO {
+public class AdminUserResponseDTO {
 
     private String id;
     private String nome;
@@ -15,5 +17,8 @@ public class UserResponseDTO {
     private String role;
     private String equipeId;
     private String funcaoVisual;
-
+    private boolean ativo;
+    private LocalDateTime criadoEm;
+    private LocalDateTime atualizadoEm;
 }
+
