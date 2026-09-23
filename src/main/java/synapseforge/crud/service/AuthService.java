@@ -23,7 +23,32 @@ public class AuthService {
     private final JwtService jwtService;
     private final EmailService emailService;
 
+    // =========================================================
+    // CADASTRO DE CLIENTE
+    // =========================================================
+
     public Map<String, String> cadastro(UserRequestDTO dto) {
+
+        return cadastrarUsuario(dto, Role.CLIENTE);
+    }
+
+    // =========================================================
+    // CADASTRO DE GERENTE
+    // =========================================================
+
+    public Map<String, String> cadastroGerente(UserRequestDTO dto) {
+
+        return cadastrarUsuario(dto, Role.GERENTE);
+    }
+
+    // =========================================================
+    // MÉTODO INTERNO DE CADASTRO
+    // =========================================================
+
+    private Map<String, String> cadastrarUsuario(
+            UserRequestDTO dto,
+            Role role
+    ) {
 
         repository.findByEmail(dto.getEmail())
                 .ifPresent(u -> {
@@ -33,135 +58,274 @@ public class AuthService {
         String confirmToken = UUID.randomUUID().toString();
 
         User user = new User();
+
         user.setNome(dto.getNome());
         user.setEmail(dto.getEmail());
         user.setSenha(encoder.encode(dto.getSenha()));
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
-        user.setRole(Role.CLIENTE);
+
+        /*
+         * O papel do usuário é definido pelo endpoint utilizado.
+         *
+         * /auth/cadastro
+         * -> CLIENTE
+         *
+         * /auth/cadastro-gerente
+         * -> GERENTE
+         *
+         * Não usamos dto.getRole() para evitar que o frontend
+         * consiga escolher livremente uma role privilegiada.
+         */
+        user.setRole(role);
+
         user.setAtivo(true);
         user.setCriadoEm(LocalDateTime.now());
         user.setTentativasLogin(0);
         user.setEmailConfirmado(false);
         user.setEmailConfirmToken(confirmToken);
-        user.setEmailConfirmTokenExpira(LocalDateTime.now().plusHours(24));
+        user.setEmailConfirmTokenExpira(
+                LocalDateTime.now().plusHours(24)
+        );
 
         repository.save(user);
 
         try {
-            emailService.enviarConfirmacaoCadastro(user.getEmail(), user.getNome(), confirmToken);
+
+            emailService.enviarConfirmacaoCadastro(
+                    user.getEmail(),
+                    user.getNome(),
+                    confirmToken
+            );
+
         } catch (RuntimeException e) {
+
             repository.delete(user);
             throw e;
         }
 
-        return Map.of("mensagem", "Conta criada! Verifique seu email para confirmar o acesso.");
+        return Map.of(
+                "mensagem",
+                "Conta criada! Verifique seu email para confirmar o acesso."
+        );
     }
+
+    // =========================================================
+    // LOGIN
+    // =========================================================
 
     public Map<String, String> login(LoginDTO dto) {
 
         User user = repository.findByEmail(dto.getEmail())
-                .orElseThrow(() -> new RuntimeException("Usuário não encontrado"));
+                .orElseThrow(
+                        () -> new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
 
-        if (user.getBloqueadoEm() != null &&
-                user.getBloqueadoEm().isAfter(LocalDateTime.now())) {
-            throw new RuntimeException("CONTA_BLOQUEADA:" + minutosRestantes(user.getBloqueadoEm()));
+        if (
+                user.getBloqueadoEm() != null
+                        && user.getBloqueadoEm()
+                        .isAfter(LocalDateTime.now())
+        ) {
+
+            throw new RuntimeException(
+                    "CONTA_BLOQUEADA:"
+                            + minutosRestantes(
+                            user.getBloqueadoEm()
+                    )
+            );
         }
 
         if (!encoder.matches(dto.getSenha(), user.getSenha())) {
-            user.setTentativasLogin(user.getTentativasLogin() + 1);
+
+            user.setTentativasLogin(
+                    user.getTentativasLogin() + 1
+            );
 
             if (user.getTentativasLogin() >= 5) {
-                user.setBloqueadoEm(LocalDateTime.now().plusMinutes(15));
+
+                user.setBloqueadoEm(
+                        LocalDateTime.now().plusMinutes(15)
+                );
+
                 repository.save(user);
-                throw new RuntimeException("CONTA_BLOQUEADA:15");
+
+                throw new RuntimeException(
+                        "CONTA_BLOQUEADA:15"
+                );
             }
 
             repository.save(user);
-            throw new RuntimeException("Senha incorreta");
+
+            throw new RuntimeException(
+                    "Senha incorreta"
+            );
         }
 
         if (!user.isEmailConfirmado()) {
-            throw new RuntimeException("EMAIL_NAO_CONFIRMADO");
+
+            throw new RuntimeException(
+                    "EMAIL_NAO_CONFIRMADO"
+            );
         }
 
         user.setTentativasLogin(0);
         user.setBloqueadoEm(null);
+
         repository.save(user);
 
         String token = jwtService.generateToken(
                 user.getId(),
                 user.getRole()
         );
+
         return Map.of(
-            "access_token", token,
-            "user_id", user.getId()
+                "access_token", token,
+                "user_id", user.getId()
         );
     }
 
-    private long minutosRestantes(LocalDateTime bloqueadoEm) {
-        long minutos = java.time.Duration.between(LocalDateTime.now(), bloqueadoEm).toMinutes() + 1;
+    // =========================================================
+    // CALCULAR MINUTOS RESTANTES DO BLOQUEIO
+    // =========================================================
+
+    private long minutosRestantes(
+            LocalDateTime bloqueadoEm
+    ) {
+
+        long minutos =
+                java.time.Duration
+                        .between(
+                                LocalDateTime.now(),
+                                bloqueadoEm
+                        )
+                        .toMinutes()
+                        + 1;
+
         return Math.max(minutos, 1);
     }
 
-    public Map<String, String> confirmarEmail(String token) {
+    // =========================================================
+    // CONFIRMAR EMAIL
+    // =========================================================
+
+    public Map<String, String> confirmarEmail(
+            String token
+    ) {
 
         User user = repository.findByEmailConfirmToken(token)
-                .orElseThrow(() -> new RuntimeException("Token inválido ou já utilizado"));
+                .orElseThrow(
+                        () -> new RuntimeException(
+                                "Token inválido ou já utilizado"
+                        )
+                );
 
-        if (user.getEmailConfirmTokenExpira() == null ||
-                user.getEmailConfirmTokenExpira().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Token expirado");
+        if (
+                user.getEmailConfirmTokenExpira() == null
+                        || user.getEmailConfirmTokenExpira()
+                        .isBefore(LocalDateTime.now())
+        ) {
+
+            throw new RuntimeException(
+                    "Token expirado"
+            );
         }
 
         user.setEmailConfirmado(true);
         user.setEmailConfirmToken(null);
         user.setEmailConfirmTokenExpira(null);
         user.setTentativasLogin(0);
+
         repository.save(user);
 
         String jwt = jwtService.generateToken(
                 user.getId(),
                 user.getRole()
         );
+
         return Map.of(
-            "access_token", jwt,
-            "user_id", user.getId()
+                "access_token", jwt,
+                "user_id", user.getId()
         );
     }
 
-    public void esqueciSenha(String email) {
+    // =========================================================
+    // ESQUECI A SENHA
+    // =========================================================
 
-        // Não revela se o email existe: apenas envia o link quando houver conta.
-        repository.findByEmail(email).ifPresent(user -> {
-            String token = UUID.randomUUID().toString();
-            user.setResetToken(token);
-            user.setResetTokenExpira(LocalDateTime.now().plusHours(1));
-            repository.save(user);
+    public void esqueciSenha(
+            String email
+    ) {
 
-            emailService.enviarRecuperacaoSenha(user.getEmail(), user.getNome(), token);
-        });
+        // Não revela se o email existe:
+        // apenas envia o link quando houver conta.
+        repository.findByEmail(email)
+                .ifPresent(user -> {
+
+                    String token =
+                            UUID.randomUUID().toString();
+
+                    user.setResetToken(token);
+
+                    user.setResetTokenExpira(
+                            LocalDateTime.now().plusHours(1)
+                    );
+
+                    repository.save(user);
+
+                    emailService.enviarRecuperacaoSenha(
+                            user.getEmail(),
+                            user.getNome(),
+                            token
+                    );
+                });
     }
 
-    public void redefinirSenha(String email, String token, String novaSenha) {
+    // =========================================================
+    // REDEFINIR SENHA
+    // =========================================================
+
+    public void redefinirSenha(
+            String email,
+            String token,
+            String novaSenha
+    ) {
 
         User user = repository.findByResetToken(token)
-                .orElseThrow(() -> new RuntimeException("Token inválido"));
+                .orElseThrow(
+                        () -> new RuntimeException(
+                                "Token inválido"
+                        )
+                );
 
         if (!user.getEmail().equals(email)) {
-            throw new RuntimeException("Token inválido");
+
+            throw new RuntimeException(
+                    "Token inválido"
+            );
         }
 
-        if (user.getResetTokenExpira() == null ||
-                user.getResetTokenExpira().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Token expirado");
+        if (
+                user.getResetTokenExpira() == null
+                        || user.getResetTokenExpira()
+                        .isBefore(LocalDateTime.now())
+        ) {
+
+            throw new RuntimeException(
+                    "Token expirado"
+            );
         }
 
-        user.setSenha(encoder.encode(novaSenha));
+        user.setSenha(
+                encoder.encode(novaSenha)
+        );
+
         user.setResetToken(null);
         user.setResetTokenExpira(null);
         user.setTentativasLogin(0);
         user.setBloqueadoEm(null);
+
         repository.save(user);
     }
 }

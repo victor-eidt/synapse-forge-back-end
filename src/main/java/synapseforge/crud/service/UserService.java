@@ -3,6 +3,7 @@ package synapseforge.crud.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.Role;
@@ -57,7 +58,9 @@ public class UserService {
                 user.getTelefone(),
                 user.getRole() != null
                         ? user.getRole().name()
-                        : null
+                        : null,
+                user.getEquipeId(),
+                user.getFuncaoVisual()
         );
     }
 
@@ -122,7 +125,6 @@ public class UserService {
                         )
                 );
 
-
         user.setNome(dto.getNome());
         user.setEmail(dto.getEmail());
         user.setCpf(dto.getCpf());
@@ -149,6 +151,9 @@ public class UserService {
             );
         }
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
 
         return repository.save(user);
     }
@@ -322,9 +327,14 @@ public class UserService {
 
         user.setEmailMudancaTokenExpira(null);
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
 
         repository.save(user);
     }
+
 
     // =========================================================
     // ATUALIZAR DADOS DO PERFIL
@@ -347,22 +357,264 @@ public class UserService {
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
 
-        if (dto.getSenha() != null && !dto.getSenha().isBlank()) {
+        if (
+                dto.getSenha() != null
+                        && !dto.getSenha().isBlank()
+        ) {
+
             user.setSenha(
                     encoder.encode(dto.getSenha())
             );
         }
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
         return repository.save(user);
     }
+
 
     // =========================================================
     // LISTAGEM DE CLIENTES PARA PEDIDOS
     // =========================================================
+
     public List<User> listarClientes() {
+
         return repository.findAll()
                 .stream()
-                .filter(user -> user.getRole() == Role.CLIENTE)
+                .filter(user ->
+                        user.getRole() == Role.CLIENTE
+                )
                 .toList();
+    }
+
+
+    // =========================================================
+    // VÍNCULO COM EQUIPE
+    // =========================================================
+
+    public User vincularEquipe(
+            String usuarioId,
+            String equipeId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        user.setEquipeId(equipeId);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+        return repository.save(user);
+    }
+
+
+    public User desvincularEquipe(
+            String usuarioId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        user.setEquipeId(null);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+        return repository.save(user);
+    }
+
+
+    // =========================================================
+    // CLIENTES DISPONÍVEIS PARA EQUIPE
+    // =========================================================
+
+    public List<User> listarClientesDisponiveisParaEquipe() {
+
+        return repository.findByRoleAndEquipeIdIsNull(
+                Role.CLIENTE
+        );
+    }
+
+
+    // =========================================================
+    // ENTRAR EM EQUIPE
+    // =========================================================
+
+    public User entrarNaEquipe(
+            String usuarioId,
+            String equipeId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+
+        // -----------------------------------------------------
+        // O usuário precisa ser CLIENTE
+        // -----------------------------------------------------
+
+        if (user.getRole() != Role.CLIENTE) {
+
+            throw new RuntimeException(
+                    "Somente clientes podem entrar em uma equipe"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // O usuário não pode estar em outra equipe
+        // -----------------------------------------------------
+
+        if (user.getEquipeId() != null) {
+
+            throw new RuntimeException(
+                    "Este usuário já pertence a uma equipe"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // Vincula equipe
+        // CLIENTE → TECNICO
+        // -----------------------------------------------------
+
+        user.setEquipeId(equipeId);
+
+        user.setRole(Role.TECNICO);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+
+        return repository.save(user);
+    }
+
+
+    // =========================================================
+    // SAIR DA EQUIPE
+    // =========================================================
+
+    public User sairDaEquipe(
+            String usuarioId,
+            String equipeId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+
+        // -----------------------------------------------------
+        // O usuário precisa ser TECNICO
+        // -----------------------------------------------------
+
+        if (user.getRole() != Role.TECNICO) {
+
+            throw new RuntimeException(
+                    "O usuário não é um técnico"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // Confere se pertence à equipe informada
+        // -----------------------------------------------------
+
+        if (
+                user.getEquipeId() == null
+                        || !user.getEquipeId().equals(equipeId)
+        ) {
+
+            throw new RuntimeException(
+                    "O usuário não pertence a esta equipe"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // Remove vínculo
+        // TECNICO → CLIENTE
+        // -----------------------------------------------------
+
+        user.setEquipeId(null);
+
+        user.setRole(Role.CLIENTE);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+
+        return repository.save(user);
+    }
+
+
+    // =========================================================
+    // LISTAR USUÁRIOS DA EQUIPE
+    // =========================================================
+
+    public List<User> listarPorEquipeId(
+            String equipeId
+    ) {
+
+        return repository.findByEquipeId(
+                equipeId
+        );
+    }
+
+    // =========================================================
+    // ATUALIZAR FUNÇÃO VISUAL DO INTEGRANTE
+    // =========================================================
+
+    public User atualizarFuncaoVisual(
+            String usuarioId,
+            String funcaoVisual
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        if (funcaoVisual == null
+                || funcaoVisual.isBlank()) {
+
+            user.setFuncaoVisual(null);
+
+        } else {
+
+            user.setFuncaoVisual(
+                    funcaoVisual.trim()
+            );
+        }
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+        return repository.save(user);
     }
 }
