@@ -81,6 +81,10 @@ public class OrcamentoController {
         dto.setCustoMaoDeObraHora(custoMaoDeObraHora);
         dto.setMargemLucro(margemLucro);
 
+        // Equipe e material validados ANTES de gravar no GridFS (o cálculo recusa
+        // sem equipe ou material inexistente/inativo): nada fica órfão.
+        service.calcular(dto, (String) auth.getPrincipal());
+
         String objeto3DFileId = armazenarArquivo(objeto3D);
         List<String> imagensReferenciaFileIds = new ArrayList<>();
         if (imagensReferencia != null) {
