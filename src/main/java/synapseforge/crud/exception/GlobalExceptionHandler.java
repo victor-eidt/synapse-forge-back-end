@@ -3,6 +3,7 @@ package synapseforge.crud.exception;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
@@ -42,6 +43,15 @@ public class GlobalExceptionHandler {
     public String handleEstoqueInsuficienteException(EstoqueInsuficienteException ex) {
         logger.error("Unprocessable Entity - EstoqueInsuficienteException: {}", ex.getMessage(), ex);
         return ex.getMessage();
+    }
+
+    // 403 com corpo em texto (mesmo formato dos demais erros) e o código estável no cabeçalho
+    @ExceptionHandler(SemEquipeException.class)
+    public ResponseEntity<String> handleSemEquipeException(SemEquipeException ex) {
+        logger.warn("Forbidden - SemEquipeException: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .header(SemEquipeException.CABECALHO_CODIGO, ex.getCodigo())
+                .body(ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

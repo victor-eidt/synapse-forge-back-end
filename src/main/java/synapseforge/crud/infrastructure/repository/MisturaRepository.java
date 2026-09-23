@@ -5,8 +5,12 @@ import org.springframework.stereotype.Repository;
 import synapseforge.crud.infrastructure.entity.Mistura;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface MisturaRepository extends MongoRepository<Mistura, String> {
-    List<Mistura> findByUsuarioId(String usuarioId);
+
+    Optional<Mistura> findByIdAndEquipeId(String id, String equipeId);
+
+    List<Mistura> findByEquipeId(String equipeId);
 }

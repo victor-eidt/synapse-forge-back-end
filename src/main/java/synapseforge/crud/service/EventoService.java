@@ -12,6 +12,7 @@ import synapseforge.crud.infrastructure.repository.EventoRepository;
 import java.util.List;
 import java.util.Optional;
 
+// A agenda é da equipe: todos os métodos recebem o usuário logado e operam só na equipe dele.
 @Service
 public class EventoService {
 
@@ -19,6 +20,9 @@ public class EventoService {
 
     @Autowired
     private EventoRepository repository;
+
+    @Autowired
+    private EquipeContexto equipeContexto;
 
     public Evento toEntity(EventoRequestDTO dto) {
         try {
@@ -62,11 +66,12 @@ public class EventoService {
         }
     }
 
-    public Evento criar(Evento evento) {
+    public Evento criar(Evento evento, String usuarioId) {
         try {
             logger.info("Criando novo evento: {}", evento);
             // regra de negócio
             // Timestamps removidos pois a entidade não os possui mais
+            evento.setEquipeId(equipeContexto.equipeObrigatoria(usuarioId));
 
             Evento saved = repository.save(evento);
             logger.info("Evento criado com sucesso: {}", saved);
@@ -77,10 +82,12 @@ public class EventoService {
         }
     }
 
-    public List<Evento> listar() {
+    public List<Evento> listar(String usuarioId) {
         try {
-            logger.info("Listando todos os eventos");
-            List<Evento> eventos = repository.findAll();
+            logger.info("Listando os eventos da equipe do usuário {}", usuarioId);
+            List<Evento> eventos = equipeContexto.equipeDe(usuarioId)
+                    .map(repository::findByEquipeId)
+                    .orElse(List.of());
             logger.info("Eventos listados com sucesso, total: {}", eventos.size());
             return eventos;
         } catch (Exception e) {
@@ -89,10 +96,11 @@ public class EventoService {
         }
     }
 
-    public Optional<Evento> buscarPorId(String id) {
+    public Optional<Evento> buscarPorId(String id, String usuarioId) {
         try {
             logger.info("Buscando evento por ID: {}", id);
-            Optional<Evento> evento = repository.findById(id);
+            Optional<Evento> evento = equipeContexto.equipeDe(usuarioId)
+                    .flatMap(equipeId -> repository.findByIdAndEquipeId(id, equipeId));
             logger.info("Busca por ID realizada: {}", evento.isPresent() ? "Encontrado" : "Não encontrado");
             return evento;
         } catch (Exception e) {
@@ -101,10 +109,12 @@ public class EventoService {
         }
     }
 
-    public List<Evento> buscarPorUserId(String userId) {
+    public List<Evento> buscarPorUserId(String usuarioId, String userId) {
         try {
             logger.info("Buscando eventos por userId: {}", userId);
-            List<Evento> eventos = repository.findByUserId(userId);
+            List<Evento> eventos = equipeContexto.equipeDe(usuarioId)
+                    .map(equipeId -> repository.findByEquipeIdAndUserId(equipeId, userId))
+                    .orElse(List.of());
             logger.info("Eventos encontrados para userId {}, total: {}", userId, eventos.size());
             return eventos;
         } catch (Exception e) {
@@ -113,13 +123,17 @@ public class EventoService {
         }
     }
 
-    public List<Evento> buscarPorUserIdAndMesAno(String userId, String mes, String ano) {
+    // userId é a agenda consultada; usuarioId é quem está logado (define a equipe)
+    public List<Evento> buscarPorUserIdAndMesAno(String usuarioId, String userId, String mes, String ano) {
         try {
             logger.info("Buscando eventos por userId ou participante: {}, mês: {}, ano: {}", userId, mes, ano);
             // Dependendo do formato da data salva no banco, o pattern precisa ser ajustado.
             // Exemplo assumindo formato "yyyy-MM-dd...":
             String mesAnoPattern = String.format("^%s-%s-.*", ano, mes);
-            List<Evento> eventos = repository.findByUserIdOrParticipanteAndMesAno(userId, mesAnoPattern);
+            List<Evento> eventos = equipeContexto.equipeDe(usuarioId)
+                    .map(equipeId -> repository.findByEquipeIdAndUserIdOrParticipanteAndMesAno(
+                            equipeId, userId, mesAnoPattern))
+                    .orElse(List.of());
             logger.info("Eventos encontrados para userId/participante {} no mês/ano {}/{}, total: {}", userId, mes, ano, eventos.size());
             return eventos;
         } catch (Exception e) {
@@ -128,11 +142,10 @@ public class EventoService {
         }
     }
 
-    public Evento atualizar(String id, Evento eventoAtualizado) {
+    public Evento atualizar(String id, Evento eventoAtualizado, String usuarioId) {
         try {
             logger.info("Atualizando evento com ID: {}, dados: {}", id, eventoAtualizado);
-            Evento evento = repository.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Evento não encontrado"));
+            Evento evento = buscarDaEquipe(id, usuarioId);
 
             evento.setNome(eventoAtualizado.getNome());
             evento.setData(eventoAtualizado.getData());
@@ -151,9 +164,10 @@ public class EventoService {
         }
     }
 
-    public void deletar(String id) {
+    public void deletar(String id, String usuarioId) {
         try {
             logger.info("Deletando evento com ID: {}", id);
+            buscarDaEquipe(id, usuarioId);
             repository.deleteById(id);
             logger.info("Evento deletado com sucesso, ID: {}", id);
         } catch (Exception e) {
@@ -162,9 +176,11 @@ public class EventoService {
         }
     }
 
-    public List<Evento> criarVarios(List<Evento> eventos) {
+    public List<Evento> criarVarios(List<Evento> eventos, String usuarioId) {
         try {
             logger.info("Criando múltiplos eventos, total: {}", eventos.size());
+            String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+            eventos.forEach(evento -> evento.setEquipeId(equipeId));
             // Timestamps removidos
             // eventos.forEach(evento -> {
             //     evento.setCriadoEm(LocalDateTime.now());
@@ -178,5 +194,12 @@ public class EventoService {
             logger.error("Erro ao criar múltiplos eventos", e);
             throw e;
         }
+    }
+
+    // escrita: sem equipe -> 403 SEM_EQUIPE; evento de outra equipe -> não encontrado
+    private Evento buscarDaEquipe(String id, String usuarioId) {
+        String equipeId = equipeContexto.equipeObrigatoria(usuarioId);
+        return repository.findByIdAndEquipeId(id, equipeId)
+                .orElseThrow(() -> new RuntimeException("Evento não encontrado"));
     }
 }

@@ -27,4 +27,7 @@ public class UserRequestDTO {
 
     private String telefone;
 
+    // Só no cadastro de gerente: nome da loja, criada junto com a conta.
+    private String nomeEquipe;
+
 }

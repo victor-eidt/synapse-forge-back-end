@@ -35,6 +35,9 @@ public class PedidoService {
     private UserRepository userRepository;
 
     @Autowired
+    private EquipeContexto equipeContexto;
+
+    @Autowired
     private org.springframework.data.mongodb.gridfs.GridFsTemplate gridFsTemplate;
 
 
@@ -73,6 +76,10 @@ public class PedidoService {
     // =========================================================
     // VALIDAR CLIENTE
     // =========================================================
+    //
+    // Cliente não pertence a equipe: basta ser um usuário CLIENTE.
+    // O vínculo do cliente com a oficina é o próprio pedido.
+    //
 
     private void validarCliente(Pedido pedido) {
 
@@ -202,9 +209,10 @@ public class PedidoService {
     // CRIAR
     // =========================================================
 
+    // A equipe sai de quem cria o pedido (pedido.usuarioId = usuário logado).
     public Pedido criar(Pedido pedido) {
 
-        validarCliente(pedido);
+        prepararParaCriacao(pedido);
 
         pedido.setStatus(
                 StatusPedido.MODELAGEM
@@ -223,13 +231,53 @@ public class PedidoService {
 
 
     // =========================================================
+    // VALIDAR ANTES DE GRAVAR ARQUIVOS
+    // =========================================================
+    //
+    // Resolve a equipe e valida o cliente. Chamado pelo controller
+    // multipart ANTES de gravar no GridFS: requisição recusada não
+    // deixa arquivo órfão. criar() repete a validação (não confia
+    // em equipeId já preenchido).
+    //
+
+    public void prepararParaCriacao(Pedido pedido) {
+
+        pedido.setEquipeId(
+                equipeContexto.equipeObrigatoria(
+                        pedido.getUsuarioId()
+                )
+        );
+
+        validarCliente(pedido);
+    }
+
+    public void validarAtualizacao(
+            String id,
+            String usuarioId,
+            Role role,
+            Pedido dados
+    ) {
+
+        buscarPedidoParaEdicao(
+                id,
+                usuarioId,
+                role
+        );
+
+        Pedido clienteInformado = new Pedido();
+        clienteInformado.setClienteId(dados.getClienteId());
+        validarCliente(clienteInformado);
+    }
+
+
+    // =========================================================
     // LISTAR
     // =========================================================
     //
-    // CLIENTE -> somente pedidos vinculados ao próprio ID
-    // TECNICO -> todos
-    // GERENTE -> todos
-    // ADMIN -> todos
+    // CLIENTE -> pedidos vinculados ao próprio ID, de qualquer equipe
+    //            (cliente não pertence a equipe; nunca SEM_EQUIPE)
+    // TECNICO / GERENTE / ADMIN -> todos da própria equipe
+    //                              (sem equipe -> lista vazia)
     //
 
     public List<Pedido> listar(
@@ -244,7 +292,16 @@ public class PedidoService {
             );
         }
 
-        return repository.findAll();
+        Optional<String> equipe =
+                equipeContexto.equipeDe(usuarioId);
+
+        if (equipe.isEmpty()) {
+            return List.of();
+        }
+
+        return repository.findByEquipeId(
+                equipe.get()
+        );
     }
 
 
@@ -266,12 +323,17 @@ public class PedidoService {
             );
         }
 
-        return repository.findAll()
-                .stream()
-                .filter(p ->
-                        p.getStatus() == status
-                )
-                .toList();
+        Optional<String> equipe =
+                equipeContexto.equipeDe(usuarioId);
+
+        if (equipe.isEmpty()) {
+            return List.of();
+        }
+
+        return repository.findByEquipeIdAndStatus(
+                equipe.get(),
+                status
+        );
     }
 
 
@@ -279,8 +341,9 @@ public class PedidoService {
     // BUSCAR POR ID
     // =========================================================
     //
-    // CLIENTE -> somente se o pedido estiver vinculado a ele
-    // TECNICO / GERENTE / ADMIN -> qualquer pedido
+    // CLIENTE -> somente se o pedido estiver vinculado a ele (qualquer equipe)
+    // TECNICO / GERENTE / ADMIN -> qualquer pedido da própria equipe
+    // Fora disso (outra equipe, sem equipe) -> vazio
     //
 
     public Optional<Pedido> buscarPorId(
@@ -299,7 +362,13 @@ public class PedidoService {
                     );
         }
 
-        return repository.findById(id);
+        return equipeContexto.equipeDe(usuarioId)
+                .flatMap(equipeId ->
+                        repository.findByIdAndEquipeId(
+                                id,
+                                equipeId
+                        )
+                );
     }
 
 
@@ -685,6 +754,10 @@ public class PedidoService {
     // =========================================================
     // VERIFICAÇÃO DE PERMISSÃO PARA ALTERAÇÃO
     // =========================================================
+    //
+    // Perfil primeiro (CLIENTE nunca altera), depois a equipe:
+    // sem equipe -> 403 SEM_EQUIPE; pedido de outra equipe -> não encontrado.
+    //
 
     private Pedido buscarPedidoParaEdicao(
             String id,
@@ -699,7 +772,12 @@ public class PedidoService {
             );
         }
 
-        return repository.findById(id)
+        String equipeId =
+                equipeContexto.equipeObrigatoria(
+                        usuarioId
+                );
+
+        return repository.findByIdAndEquipeId(id, equipeId)
                 .orElseThrow(
                         () ->
                                 new RuntimeException(

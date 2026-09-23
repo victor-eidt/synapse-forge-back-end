@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import synapseforge.crud.DTO.User.LoginDTO;
 import synapseforge.crud.DTO.User.UserRequestDTO;
+import synapseforge.crud.infrastructure.entity.Equipe;
 import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.UserRepository;
@@ -38,6 +39,9 @@ class AuthServiceTest {
     @Mock
     private BCryptPasswordEncoder encoder;
 
+    @Mock
+    private EquipeService equipeService;
+
     @InjectMocks
     private AuthService service;
 
@@ -59,6 +63,76 @@ class AuthServiceTest {
         assertEquals("Conta criada! Verifique seu email para confirmar o acesso.", result.get("mensagem"));
         verify(repository).save(any(User.class));
         verify(emailService).enviarConfirmacaoCadastro(eq("ana@teste.com"), eq("Ana"), anyString());
+    }
+
+    private UserRequestDTO dtoGerente(String nomeEquipe) {
+        UserRequestDTO dto = new UserRequestDTO();
+        dto.setNome("Gabi");
+        dto.setEmail("gabi@loja.com");
+        dto.setSenha("123456");
+        dto.setNomeEquipe(nomeEquipe);
+        return dto;
+    }
+
+    @Test
+    void cadastroGerenteCriaALojaJuntoComAConta() {
+        Equipe equipe = new Equipe();
+        equipe.setId("eq-1");
+
+        when(repository.findByEmail("gabi@loja.com")).thenReturn(Optional.empty());
+        when(encoder.encode("123456")).thenReturn("hash");
+        when(equipeService.criar(any(), eq("Ateliê da Gabi"), isNull(), isNull())).thenReturn(equipe);
+
+        service.cadastroGerente(dtoGerente("  Ateliê da Gabi  "));
+
+        verify(equipeService).criar(any(), eq("Ateliê da Gabi"), isNull(), isNull());
+        verify(repository, atLeastOnce()).save(argThat(u ->
+                u.getRole() == Role.GERENTE && "eq-1".equals(u.getEquipeId())));
+    }
+
+    @Test
+    void cadastroGerenteSemNomeDaLojaERecusadoSemCriarNada() {
+        when(repository.findByEmail("gabi@loja.com")).thenReturn(Optional.empty());
+
+        RuntimeException erro = assertThrows(RuntimeException.class,
+                () -> service.cadastroGerente(dtoGerente("   ")));
+
+        assertEquals("Informe o nome da loja", erro.getMessage());
+        verify(repository, never()).save(any());
+        verifyNoInteractions(equipeService, emailService);
+    }
+
+    @Test
+    void cadastroGerenteDesfazLojaEContaSeOEmailFalhar() {
+        Equipe equipe = new Equipe();
+        equipe.setId("eq-1");
+
+        when(repository.findByEmail("gabi@loja.com")).thenReturn(Optional.empty());
+        when(encoder.encode("123456")).thenReturn("hash");
+        when(equipeService.criar(any(), eq("Loja"), isNull(), isNull())).thenReturn(equipe);
+        doThrow(new RuntimeException("SMTP fora")).when(emailService)
+                .enviarConfirmacaoCadastro(anyString(), anyString(), anyString());
+
+        assertThrows(RuntimeException.class, () -> service.cadastroGerente(dtoGerente("Loja")));
+
+        verify(equipeService).deletar(eq("eq-1"), any());
+        verify(repository).delete(any(User.class));
+    }
+
+    @Test
+    void cadastroClienteNaoCriaLoja() {
+        UserRequestDTO dto = new UserRequestDTO();
+        dto.setNome("Ana");
+        dto.setEmail("ana@teste.com");
+        dto.setSenha("123456");
+        dto.setNomeEquipe("Ignorado");
+
+        when(repository.findByEmail("ana@teste.com")).thenReturn(Optional.empty());
+        when(encoder.encode("123456")).thenReturn("hash");
+
+        service.cadastro(dto);
+
+        verifyNoInteractions(equipeService);
     }
 
     @Test

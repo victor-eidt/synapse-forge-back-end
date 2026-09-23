@@ -38,8 +38,8 @@ public class OrcamentoController {
 
     @PreAuthorize("hasRole('GERENTE')")
     @PostMapping("/calcular")
-    public OrcamentoResponseDTO calcular(@RequestBody @Valid CalcularOrcamentoRequestDTO dto) {
-        return service.calcular(dto);
+    public OrcamentoResponseDTO calcular(@RequestBody @Valid CalcularOrcamentoRequestDTO dto, Authentication auth) {
+        return service.calcular(dto, (String) auth.getPrincipal());
     }
 
     @PreAuthorize("hasRole('GERENTE')")
@@ -80,6 +80,10 @@ public class OrcamentoController {
         dto.setCustoMaquinaHora(custoMaquinaHora);
         dto.setCustoMaoDeObraHora(custoMaoDeObraHora);
         dto.setMargemLucro(margemLucro);
+
+        // Equipe e material validados ANTES de gravar no GridFS (o cálculo recusa
+        // sem equipe ou material inexistente/inativo): nada fica órfão.
+        service.calcular(dto, (String) auth.getPrincipal());
 
         String objeto3DFileId = armazenarArquivo(objeto3D);
         List<String> imagensReferenciaFileIds = new ArrayList<>();

@@ -22,6 +22,9 @@ public class Orcamento {
     @Id
     private String id;
 
+    // Equipe (oficina) dona do registro; sai sempre do usuário logado, nunca do request
+    private String equipeId;
+
     private String materialId;
 
     // Dados comerciais compartilhados com o pedido.

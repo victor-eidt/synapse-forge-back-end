@@ -20,6 +20,10 @@ public class OrdemPintura {
     @Id
     private String id;
 
+    // Equipe (oficina) dona do registro; sai sempre do usuário logado, nunca do request
+    private String equipeId;
+
+    // Quem cadastrou (metadado; o acesso é pela equipe)
     private String usuarioId;
     private String pedidoId;
     private String corId;

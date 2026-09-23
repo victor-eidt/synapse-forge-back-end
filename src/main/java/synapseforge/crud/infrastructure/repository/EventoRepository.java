@@ -5,14 +5,16 @@ import org.springframework.data.mongodb.repository.Query;
 import synapseforge.crud.infrastructure.entity.Evento;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface EventoRepository extends MongoRepository<Evento, String> {
 
-    List<Evento> findByUserId(String userId);
+    Optional<Evento> findByIdAndEquipeId(String id, String equipeId);
 
-    @Query("{ 'userId': ?0, 'data': { $regex: ?1 } }")
-    List<Evento> findByUserIdAndMesAno(String userId, String mesAnoPattern);
+    List<Evento> findByEquipeId(String equipeId);
 
-    @Query("{ $or: [ { 'userId': ?0 }, { 'participantes': ?0 } ], 'data': { $regex: ?1 } }")
-    List<Evento> findByUserIdOrParticipanteAndMesAno(String userId, String mesAnoPattern);
+    List<Evento> findByEquipeIdAndUserId(String equipeId, String userId);
+
+    @Query("{ 'equipeId': ?0, $or: [ { 'userId': ?1 }, { 'participantes': ?1 } ], 'data': { $regex: ?2 } }")
+    List<Evento> findByEquipeIdAndUserIdOrParticipanteAndMesAno(String equipeId, String userId, String mesAnoPattern);
 }
