@@ -4,11 +4,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import synapseforge.crud.infrastructure.security.JwtFilter;
 
@@ -143,6 +145,16 @@ public class SecurityConfig {
 
                         // Qualquer outra rota exige autenticação.
                         .anyRequest().authenticated()
+                )
+
+                // Sem token válido (ausente, expirado, adulterado) = 401; autenticado sem
+                // permissão = 403. Antes os dois viravam 403 e o front não sabia se devia deslogar.
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        // Status direto, sem sendError: o sendError encaminha para /error, que
+                        // exige autenticação, e o 403 virava 401 (e o front deslogaria).
+                        .accessDeniedHandler((request, response, e) ->
+                                response.setStatus(HttpStatus.FORBIDDEN.value()))
                 )
 
                 // JWT precisa ser executado antes do filtro padrão

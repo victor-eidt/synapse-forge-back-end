@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
 
 import synapseforge.crud.DTO.User.ClienteResumoDTO;
+import synapseforge.crud.DTO.User.PerfilUpdateRequestDTO;
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.User;
@@ -46,7 +47,7 @@ public class UserController {
     // LISTAR USUÁRIOS
     // =========================================================
 
-    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
     @GetMapping
     public List<UserResponseDTO> listar(
             Authentication auth
@@ -138,7 +139,7 @@ public class UserController {
     @PreAuthorize("hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')")
     @PutMapping("/me")
     public UserResponseDTO atualizarMeuPerfil(
-            @RequestBody UserRequestDTO dto,
+            @RequestBody PerfilUpdateRequestDTO dto,
             Authentication auth
     ) {
 
@@ -161,7 +162,7 @@ public class UserController {
     // BUSCAR USUÁRIO POR ID
     // =========================================================
 
-    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
     @GetMapping("/{id}")
     public UserResponseDTO buscar(
             @PathVariable String id,
@@ -256,7 +257,7 @@ public class UserController {
     // BUSCAR POR NOME
     // =========================================================
 
-    @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
     @GetMapping("/search")
     public List<UserResponseDTO> buscarPorNome(
             @RequestParam String nome,

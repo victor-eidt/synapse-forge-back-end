@@ -55,7 +55,13 @@ public class AdminService {
         }
 
         if (dto.getEmail() != null) {
-            user.setEmail(dto.getEmail());
+            String email = UserRepository.normalizarEmail(dto.getEmail());
+            userRepository.buscarPorEmail(email)
+                    .filter(outro -> !outro.getId().equals(user.getId()))
+                    .ifPresent(outro -> {
+                        throw new RuntimeException("Este email já está em uso");
+                    });
+            user.setEmail(email);
         }
 
         if (dto.getCpf() != null) {
