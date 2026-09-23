@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import synapseforge.crud.DTO.Equipe.ConviteEquipeResponseDTO;
 import synapseforge.crud.DTO.Equipe.EquipeRequestDTO;
 import synapseforge.crud.DTO.Equipe.EquipeResponseDTO;
+import synapseforge.crud.DTO.Equipe.MeuConviteResponseDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
 import synapseforge.crud.infrastructure.entity.ConviteEquipe;
 import synapseforge.crud.infrastructure.entity.Equipe;
@@ -23,8 +24,10 @@ import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.service.ConviteEquipeService;
 import synapseforge.crud.service.EquipeService;
 import synapseforge.crud.service.UserService;
+import synapseforge.crud.infrastructure.security.JwtService;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/equipes")
@@ -34,6 +37,7 @@ public class EquipeController {
     private final EquipeService service;
     private final UserService userService;
     private final ConviteEquipeService conviteEquipeService;
+    private final JwtService jwtService;
 
     @Autowired
     private GridFsTemplate gridFsTemplate;
@@ -241,6 +245,68 @@ public class EquipeController {
                 conviteEquipeService.aceitarConvite(token);
 
         return userService.toResponseDTO(usuario);
+    }
+
+
+    // =========================================================
+    // MEU CONVITE (SYN-101): o convidado responde dentro do app
+    // =========================================================
+    // Fora de /equipes/convites/** de propósito: aquelas rotas são
+    // públicas (link do e-mail); estas exigem login.
+
+    @GetMapping("/meu-convite")
+    public ResponseEntity<MeuConviteResponseDTO> meuConvite(
+            Authentication auth
+    ) {
+
+        return conviteEquipeService
+                .buscarConvitePendenteDoUsuario(
+                        (String) auth.getPrincipal()
+                )
+                .map(convite -> new MeuConviteResponseDTO(
+                        conviteEquipeService.toResponseDTO(convite),
+                        service.buscarPorId(convite.getEquipeId())
+                                .map(service::toResponseDTO)
+                                .orElse(null)
+                ))
+                .map(ResponseEntity::ok)
+                .orElseGet(() ->
+                        ResponseEntity.noContent().build()
+                );
+    }
+
+    @PostMapping("/meu-convite/aceitar")
+    public Map<String, String> aceitarMeuConvite(
+            Authentication auth
+    ) {
+
+        User usuario =
+                conviteEquipeService.aceitarConviteDoUsuario(
+                        (String) auth.getPrincipal()
+                );
+
+        // O papel mudou (CLIENTE -> TECNICO): devolve um token com o papel atual.
+        return Map.of(
+                "access_token",
+                jwtService.generateToken(
+                        usuario.getId(),
+                        usuario.getRole()
+                ),
+                "user_id",
+                usuario.getId()
+        );
+    }
+
+    @PostMapping("/meu-convite/recusar")
+    public ResponseEntity<Void> recusarMeuConvite(
+            Authentication auth
+    ) {
+
+        conviteEquipeService.recusarConviteDoUsuario(
+                (String) auth.getPrincipal()
+        );
+
+        return ResponseEntity.noContent().build();
     }
 
 
