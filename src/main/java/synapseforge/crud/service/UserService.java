@@ -610,18 +610,6 @@ public class UserService {
 
 
     // =========================================================
-    // CLIENTES DISPONÍVEIS PARA EQUIPE
-    // =========================================================
-
-    public List<User> listarClientesDisponiveisParaEquipe() {
-
-        return repository.findByRoleAndEquipeIdIsNull(
-                Role.CLIENTE
-        );
-    }
-
-
-    // =========================================================
     // ENTRAR EM EQUIPE
     // =========================================================
 
