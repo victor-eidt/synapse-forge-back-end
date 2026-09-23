@@ -324,7 +324,8 @@ class PedidoServiceTest {
         Pedido result = service.atualizar("p-1", "user-1", Role.ADMIN, dados);
 
         assertEquals("Cliente B", result.getCliente());
-        assertEquals(StatusPedido.IMPRESSAO, result.getStatus());
+        // A etapa só muda por avançar/regredir/cancelar (gatilho de estoque): o PUT ignora o status.
+        assertEquals(StatusPedido.MODELAGEM, result.getStatus());
     }
 
     @Test
