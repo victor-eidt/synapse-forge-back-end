@@ -506,9 +506,8 @@ public class PedidoService {
     // ATUALIZAR
     // =========================================================
 
-    // LIMITAÇÃO CONHECIDA: este método aceita trocar o status diretamente, sem passar pelo
-    // gatilho de baixa/estorno de estoque de avancarStatus/regredirStatus — é uma porta
-    // lateral que ignora o estoque. Decisão pendente de alinhamento com o grupo.
+    // A etapa (status) NÃO muda por aqui: só por avancarStatus/regredirStatus/cancelar, que
+    // disparam a baixa e o estorno de estoque. Um status no corpo do PUT é ignorado.
     public Pedido atualizar(
             String id,
             String usuarioId,
@@ -544,13 +543,6 @@ public class PedidoService {
         );
 
         copiarDadosOrcamento(pedido, dados);
-
-        if (dados.getStatus() != null) {
-
-            pedido.setStatus(
-                    dados.getStatus()
-            );
-        }
 
         validarCliente(pedido);
 
@@ -629,13 +621,6 @@ public class PedidoService {
         );
 
         copiarDadosOrcamento(pedido, dados);
-
-        if (dados.getStatus() != null) {
-
-            pedido.setStatus(
-                    dados.getStatus()
-            );
-        }
 
         validarCliente(pedido);
 
