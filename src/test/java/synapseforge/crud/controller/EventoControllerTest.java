@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
 import synapseforge.crud.DTO.Evento.EventoRequestDTO;
 import synapseforge.crud.DTO.Evento.EventoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Evento;
@@ -26,6 +27,12 @@ class EventoControllerTest {
     @InjectMocks
     private EventoController controller;
 
+    private Authentication auth() {
+        Authentication auth = mock(Authentication.class);
+        when(auth.getPrincipal()).thenReturn("u-1");
+        return auth;
+    }
+
     @Test
     void criarDeveRetornarEvento() {
         EventoRequestDTO dto = new EventoRequestDTO();
@@ -35,10 +42,10 @@ class EventoControllerTest {
         EventoResponseDTO response = new EventoResponseDTO("e-1", "u-1", "Workshop", LocalDate.now().toString(), "Desc", "09:00", "10:00", List.of("Ana"));
 
         when(service.toEntity(dto)).thenReturn(evento);
-        when(service.criar(evento)).thenReturn(evento);
+        when(service.criar(evento, "u-1")).thenReturn(evento);
         when(service.toResponseDTO(evento)).thenReturn(response);
 
-        assertEquals("Workshop", controller.criar(dto).getNome());
+        assertEquals("Workshop", controller.criar(dto, auth()).getNome());
     }
 
     @Test
@@ -48,10 +55,10 @@ class EventoControllerTest {
         evento.setNome("Workshop");
         EventoResponseDTO response = new EventoResponseDTO("e-1", "u-1", "Workshop", LocalDate.now().toString(), "Desc", "09:00", "10:00", List.of("Ana"));
 
-        when(service.listar()).thenReturn(List.of(evento));
+        when(service.listar("u-1")).thenReturn(List.of(evento));
         when(service.toResponseDTO(evento)).thenReturn(response);
 
-        assertEquals(1, controller.listar().size());
+        assertEquals(1, controller.listar(auth()).size());
     }
 
     @Test
@@ -61,10 +68,10 @@ class EventoControllerTest {
         evento.setNome("Workshop");
         EventoResponseDTO response = new EventoResponseDTO("e-1", "u-1", "Workshop", LocalDate.now().toString(), "Desc", "09:00", "10:00", List.of("Ana"));
 
-        when(service.buscarPorId("e-1")).thenReturn(Optional.of(evento));
+        when(service.buscarPorId("e-1", "u-1")).thenReturn(Optional.of(evento));
         when(service.toResponseDTO(evento)).thenReturn(response);
 
-        assertEquals("Workshop", controller.buscar("e-1").getNome());
+        assertEquals("Workshop", controller.buscar("e-1", auth()).getNome());
     }
 
     @Test
@@ -74,10 +81,10 @@ class EventoControllerTest {
         evento.setNome("Workshop");
         EventoResponseDTO response = new EventoResponseDTO("e-1", "u-1", "Workshop", LocalDate.now().toString(), "Desc", "09:00", "10:00", List.of("Ana"));
 
-        when(service.buscarPorUserIdAndMesAno("u-1", "09", "2026")).thenReturn(List.of(evento));
+        when(service.buscarPorUserIdAndMesAno("u-1", "u-1", "09", "2026")).thenReturn(List.of(evento));
         when(service.toResponseDTO(evento)).thenReturn(response);
 
-        assertEquals(1, controller.buscarPorUsuarioMes("u-1", "09", "2026").size());
+        assertEquals(1, controller.buscarPorUsuarioMes("u-1", "09", "2026", auth()).size());
     }
 
     @Test
@@ -89,16 +96,16 @@ class EventoControllerTest {
         EventoResponseDTO response = new EventoResponseDTO("e-1", "u-1", "Workshop Atualizado", LocalDate.now().toString(), "Desc", "09:00", "10:00", List.of("Ana"));
 
         when(service.toEntity(dto)).thenReturn(evento);
-        when(service.atualizar("e-1", evento)).thenReturn(evento);
+        when(service.atualizar("e-1", evento, "u-1")).thenReturn(evento);
         when(service.toResponseDTO(evento)).thenReturn(response);
 
-        assertEquals("Workshop Atualizado", controller.atualizar("e-1", dto).getNome());
+        assertEquals("Workshop Atualizado", controller.atualizar("e-1", dto, auth()).getNome());
     }
 
     @Test
     void deletarDeveChamarService() {
-        controller.deletar("e-1");
-        verify(service).deletar("e-1");
+        controller.deletar("e-1", auth());
+        verify(service).deletar("e-1", "u-1");
     }
 
     @Test
@@ -110,9 +117,9 @@ class EventoControllerTest {
         EventoResponseDTO response = new EventoResponseDTO("e-1", "u-1", "Workshop", LocalDate.now().toString(), "Desc", "09:00", "10:00", List.of("Ana"));
 
         when(service.toEntity(dto)).thenReturn(evento);
-        when(service.criarVarios(List.of(evento))).thenReturn(List.of(evento));
+        when(service.criarVarios(List.of(evento), "u-1")).thenReturn(List.of(evento));
         when(service.toResponseDTO(evento)).thenReturn(response);
 
-        assertEquals(1, controller.criarVarios(List.of(dto)).size());
+        assertEquals(1, controller.criarVarios(List.of(dto), auth()).size());
     }
 }

@@ -28,12 +28,12 @@ public class EstoqueMetricasController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
             Authentication auth) {
-        return service.consumoPorInsumo(inicio.atStartOfDay(), fim.atTime(LocalTime.MAX));
+        return service.consumoPorInsumo(inicio.atStartOfDay(), fim.atTime(LocalTime.MAX), (String) auth.getPrincipal());
     }
 
     @GetMapping("/custo-pedido/{pedidoId}")
     public CustoPedidoResponseDTO custoPorPedido(@PathVariable String pedidoId, Authentication auth) {
-        return service.custoPorPedido(pedidoId);
+        return service.custoPorPedido(pedidoId, (String) auth.getPrincipal());
     }
 
     @GetMapping("/consumo-por-etapa")
@@ -41,7 +41,7 @@ public class EstoqueMetricasController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate inicio,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fim,
             Authentication auth) {
-        return service.consumoPorEtapa(inicio.atStartOfDay(), fim.atTime(LocalTime.MAX));
+        return service.consumoPorEtapa(inicio.atStartOfDay(), fim.atTime(LocalTime.MAX), (String) auth.getPrincipal());
     }
 
     @GetMapping("/consumo-medio-semanal")
@@ -49,11 +49,11 @@ public class EstoqueMetricasController {
                                                               @RequestParam String insumoId,
                                                               @RequestParam(defaultValue = "4") int semanas,
                                                               Authentication auth) {
-        return service.consumoMedioSemanal(tipoInsumo, insumoId, semanas);
+        return service.consumoMedioSemanal(tipoInsumo, insumoId, semanas, (String) auth.getPrincipal());
     }
 
     @GetMapping("/insumos-criticos")
     public List<InsumoCriticoResponseDTO> insumosCriticos(Authentication auth) {
-        return service.insumosCriticos();
+        return service.insumosCriticos((String) auth.getPrincipal());
     }
 }

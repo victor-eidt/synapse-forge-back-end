@@ -20,6 +20,9 @@ public class MovimentoEstoque {
     @Id
     private String id;
 
+    // Equipe (oficina) dona do registro; sai sempre do usuário logado, nunca do request
+    private String equipeId;
+
     private TipoInsumo tipoInsumo;
     private String insumoId;
     private TipoMovimento tipo;

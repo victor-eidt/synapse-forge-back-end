@@ -20,6 +20,9 @@ public class ConsumoPedido {
     @Id
     private String id;
 
+    // Equipe (oficina) dona do registro; sai sempre do usuário logado, nunca do request
+    private String equipeId;
+
     private String pedidoId;
     private List<ItemConsumo> itens;
 

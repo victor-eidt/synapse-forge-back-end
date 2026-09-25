@@ -17,11 +17,11 @@ public class ConsumoPedidoController {
 
     @PostMapping
     public ConsumoPedidoResponseDTO salvar(@RequestBody @Valid ConsumoPedidoRequestDTO dto, Authentication auth) {
-        return service.salvar(dto);
+        return service.salvar(dto, (String) auth.getPrincipal());
     }
 
     @GetMapping("/{pedidoId}")
     public ConsumoPedidoResponseDTO buscarPorPedido(@PathVariable String pedidoId, Authentication auth) {
-        return service.buscarPorPedido(pedidoId);
+        return service.buscarPorPedido(pedidoId, (String) auth.getPrincipal());
     }
 }

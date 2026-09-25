@@ -20,6 +20,7 @@ import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.service.PedidoService;
 import synapseforge.crud.service.PdfService;
+import synapseforge.crud.service.ArquivoUtils;
 
 import java.io.IOException;
 import java.time.LocalDate;
@@ -185,6 +186,12 @@ public class PedidoController {
                         dto,
                         usuarioId
                 );
+
+        // Equipe e cliente validados ANTES de gravar no GridFS:
+        // requisição recusada não deixa arquivo órfão.
+        service.prepararParaCriacao(
+                pedido
+        );
 
 
         // =====================================================
@@ -606,6 +613,21 @@ public class PedidoController {
 
         preencherDadosOrcamento(dto, materialId, volumeCm3, tempoImpressaoHoras, tempoMaoDeObraHoras, custoMaquinaHora, custoMaoDeObraHora, margemLucro, custoMaterial, custoMaquina, custoMaoDeObra, custoTotal, precoFinal);
 
+        Pedido dados =
+                service.toEntity(
+                        dto,
+                        usuarioId
+                );
+
+        // Perfil, equipe, pedido e cliente validados ANTES de gravar
+        // no GridFS: requisição recusada não deixa arquivo órfão.
+        service.validarAtualizacao(
+                id,
+                usuarioId,
+                role,
+                dados
+        );
+
 
         // =====================================================
         // NOVO ARQUIVO 3D
@@ -668,10 +690,7 @@ public class PedidoController {
                         id,
                         usuarioId,
                         role,
-                        service.toEntity(
-                                dto,
-                                usuarioId
-                        ),
+                        dados,
                         novoObjetoId,
                         removerObjeto3D,
                         novasImagensIds,
@@ -785,48 +804,12 @@ public class PedidoController {
                 );
 
 
-        String contentType =
-                "application/octet-stream";
-
-        if (
-                gridFsFile.getMetadata() != null
-        ) {
-
-            if (
-                    gridFsFile.getMetadata()
-                            .getString(
-                                    "contentType"
-                            ) != null
-            ) {
-
-                contentType =
-                        gridFsFile.getMetadata()
-                                .getString(
-                                        "contentType"
-                                );
-
-            } else if (
-                    gridFsFile.getMetadata()
-                            .getString(
-                                    "_contentType"
-                            ) != null
-            ) {
-
-                contentType =
-                        gridFsFile.getMetadata()
-                                .getString(
-                                        "_contentType"
-                                );
-            }
-        }
-
-
         HttpHeaders headers =
                 new HttpHeaders();
 
         headers.setContentType(
                 MediaType.parseMediaType(
-                        contentType
+                        ArquivoUtils.contentType(gridFsFile)
                 )
         );
 
@@ -858,9 +841,7 @@ public class PedidoController {
     // GERAR ORDEM DE SERVIÇO
     // =========================================================
 
-    @PreAuthorize(
-            "hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')"
-    )
+    @PreAuthorize("hasRole('GERENTE')")
     @GetMapping("/{id}/ordem-servico")
     public ResponseEntity<byte[]> gerarOrdemServico(
             @PathVariable String id,
