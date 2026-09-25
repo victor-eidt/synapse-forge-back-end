@@ -23,6 +23,9 @@ public class Pedido {
     @Id
     private String id;
 
+    // Equipe (oficina) dona do registro; sai sempre do usuário logado, nunca do request
+    private String equipeId;
+
     // Usuário que criou/responsável pelo pedido
     private String usuarioId;
 

@@ -1,6 +1,10 @@
 package synapseforge.crud.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import org.junit.jupiter.api.Test;
@@ -8,17 +12,26 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.gridfs.GridFsTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.core.io.InputStreamResource;
 import synapseforge.crud.DTO.Pedido.PedidoRequestDTO;
 import synapseforge.crud.DTO.Pedido.PedidoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
+import synapseforge.crud.exception.SemEquipeException;
 import synapseforge.crud.service.PdfService;
 import synapseforge.crud.service.PedidoService;
 
+import java.io.InputStream;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,13 +44,17 @@ class PedidoControllerTest {
     @Mock
     private PdfService pdfService;
 
+    @Mock
+    private GridFsTemplate gridFsTemplate;
+
     @InjectMocks
     private PedidoController controller;
 
     private Authentication authAdmin() {
         Authentication auth = mock(Authentication.class);
         when(auth.getPrincipal()).thenReturn("user-1");
-        doReturn(List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
+        // lenient: a criação não lê o perfil (o @PreAuthorize cuida disso)
+        lenient().doReturn(List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
                 .when(auth).getAuthorities();
         return auth;
     }
@@ -146,5 +163,134 @@ class PedidoControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         assertEquals("application/pdf", response.getHeaders().getContentType().toString());
+    }
+
+    @Test
+    void listarPorStatusDeveRetornarPedidosFiltrados() {
+        Authentication auth = authAdmin();
+        Pedido pedido = new Pedido();
+        pedido.setId("p-2");
+        pedido.setStatus(StatusPedido.MODELAGEM);
+
+        when(service.listarPorStatus("user-1", Role.ADMIN, StatusPedido.MODELAGEM)).thenReturn(List.of(pedido));
+
+        assertEquals(1, controller.listar(StatusPedido.MODELAGEM, auth).size());
+    }
+
+    @Test
+    void cancelarDeveRetornarPedidoAtualizado() {
+        Authentication auth = authAdmin();
+        Pedido pedido = new Pedido();
+        pedido.setId("p-3");
+        pedido.setStatus(StatusPedido.CANCELADO);
+        PedidoResponseDTO response = mock(PedidoResponseDTO.class);
+        when(response.getStatus()).thenReturn(StatusPedido.CANCELADO);
+
+        when(service.cancelar("p-3", "user-1", Role.ADMIN)).thenReturn(pedido);
+        when(service.toResponseDTO(pedido)).thenReturn(response);
+
+        assertEquals(StatusPedido.CANCELADO, controller.cancelar("p-3", auth).getStatus());
+    }
+
+    @Test
+    void getObjeto3D_quandoArquivoExisteDeveRetornarDownload() throws Exception {
+        Authentication auth = authAdmin();
+        Pedido pedido = new Pedido();
+        String fileId = new ObjectId().toHexString();
+        pedido.setObjeto3DFileId(fileId);
+
+        com.mongodb.client.gridfs.model.GridFSFile gridFsFile = mock(com.mongodb.client.gridfs.model.GridFSFile.class);
+        when(gridFsFile.getFilename()).thenReturn("modelo.stl");
+        when(gridFsFile.getMetadata()).thenReturn(new org.bson.Document("contentType", "model/stl"));
+
+        org.springframework.data.mongodb.gridfs.GridFsResource resource = mock(org.springframework.data.mongodb.gridfs.GridFsResource.class);
+        when(resource.getInputStream()).thenReturn(new java.io.ByteArrayInputStream(new byte[]{1, 2, 3}));
+
+        when(service.buscarPorId("p-1", "user-1", Role.ADMIN)).thenReturn(Optional.of(pedido));
+        when(gridFsTemplate.findOne(any())).thenReturn(gridFsFile);
+        when(gridFsTemplate.getResource(gridFsFile)).thenReturn(resource);
+
+        ResponseEntity<InputStreamResource> response = controller.getObjeto3D("p-1", auth);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals("model/stl", response.getHeaders().getContentType().toString());
+    }
+
+    @Test
+    void getObjeto3D_quandoArquivoNaoExisteDeveRetornarNotFound() throws Exception {
+        Authentication auth = authAdmin();
+        Pedido pedido = new Pedido();
+        pedido.setObjeto3DFileId(null);
+
+        when(service.buscarPorId("p-1", "user-1", Role.ADMIN)).thenReturn(Optional.of(pedido));
+
+        ResponseEntity<InputStreamResource> response = controller.getObjeto3D("p-1", auth);
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    // =========================================================
+    // MULTIPART: VALIDA ANTES DE GRAVAR NO GRIDFS (SYN-100)
+    // =========================================================
+
+    private MockMultipartFile arquivo(String nome) {
+        return new MockMultipartFile(nome, nome + ".bin", "application/octet-stream", new byte[]{1, 2, 3});
+    }
+
+    private PedidoResponseDTO criarMultipart(Authentication auth) throws Exception {
+        return controller.criarComArquivos(null, "", "Projeto", null, LocalDate.now(),
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                arquivo("obj"), new MultipartFile[]{arquivo("img")}, auth);
+    }
+
+    private PedidoResponseDTO atualizarMultipart(Authentication auth) throws Exception {
+        return controller.atualizarComArquivos("p-1", null, "", "Projeto", null, LocalDate.now(),
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, arquivo("obj"), false, new MultipartFile[]{arquivo("img")}, null, auth);
+    }
+
+    @Test
+    void criarMultipartRecusadoNaoGravaArquivos() {
+        Authentication auth = authAdmin();
+        Pedido pedido = new Pedido();
+        when(service.toEntity(any(PedidoRequestDTO.class), eq("user-1"))).thenReturn(pedido);
+        doThrow(new SemEquipeException()).when(service).prepararParaCriacao(pedido);
+
+        assertThrows(SemEquipeException.class, () -> criarMultipart(auth));
+
+        verifyNoInteractions(gridFsTemplate);
+        verify(service, never()).criar(any());
+    }
+
+    @Test
+    void criarMultipartValidoGravaArquivosDepoisDaValidacao() throws Exception {
+        Authentication auth = authAdmin();
+        Pedido pedido = new Pedido();
+        when(service.toEntity(any(PedidoRequestDTO.class), eq("user-1"))).thenReturn(pedido);
+        when(gridFsTemplate.store(any(InputStream.class), anyString(), anyString())).thenReturn(new ObjectId());
+        when(service.criar(pedido)).thenReturn(pedido);
+        when(service.toResponseDTO(pedido)).thenReturn(mock(PedidoResponseDTO.class));
+
+        criarMultipart(auth);
+
+        var ordem = inOrder(service, gridFsTemplate);
+        ordem.verify(service).prepararParaCriacao(pedido);
+        ordem.verify(gridFsTemplate, times(2)).store(any(InputStream.class), anyString(), anyString());
+        ordem.verify(service).criar(pedido);
+    }
+
+    @Test
+    void atualizarMultipartRecusadoNaoGravaArquivos() {
+        Authentication auth = authAdmin();
+        Pedido dados = new Pedido();
+        when(service.toEntity(any(PedidoRequestDTO.class), eq("user-1"))).thenReturn(dados);
+        doThrow(new RuntimeException("Pedido não encontrado"))
+                .when(service).validarAtualizacao("p-1", "user-1", Role.ADMIN, dados);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> atualizarMultipart(auth));
+
+        assertEquals("Pedido não encontrado", ex.getMessage());
+        verifyNoInteractions(gridFsTemplate);
+        verify(service, never()).atualizarComArquivos(any(), any(), any(), any(), any(), anyBoolean(), any(), any());
     }
 }

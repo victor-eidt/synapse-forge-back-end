@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import synapseforge.crud.exception.SemEquipeException;
 
 import java.util.Arrays;
 import java.util.List;
@@ -27,7 +28,8 @@ public class CorsConfig {
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setExposedHeaders(List.of("Content-Disposition", "Content-Type", "Content-Length"));
+        config.setExposedHeaders(List.of("Content-Disposition", "Content-Type", "Content-Length",
+                SemEquipeException.CABECALHO_CODIGO));
         config.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

@@ -3,17 +3,28 @@ package synapseforge.crud.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import synapseforge.crud.DTO.User.ClienteResumoDTO;
+import synapseforge.crud.DTO.User.PerfilUpdateRequestDTO;
 import synapseforge.crud.DTO.User.UserRequestDTO;
 import synapseforge.crud.DTO.User.UserResponseDTO;
+import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.User;
+import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +33,8 @@ public class UserService {
     private final UserRepository repository;
     private final BCryptPasswordEncoder encoder;
     private final EmailService emailService;
+    private final EquipeContexto equipeContexto;
+    private final PedidoRepository pedidoRepository;
 
 
     // =========================================================
@@ -33,7 +46,7 @@ public class UserService {
         User user = new User();
 
         user.setNome(dto.getNome());
-        user.setEmail(dto.getEmail());
+        user.setEmail(UserRepository.normalizarEmail(dto.getEmail()));
         user.setSenha(dto.getSenha());
         user.setCpf(dto.getCpf());
         user.setTelefone(dto.getTelefone());
@@ -57,7 +70,9 @@ public class UserService {
                 user.getTelefone(),
                 user.getRole() != null
                         ? user.getRole().name()
-                        : null
+                        : null,
+                user.getEquipeId(),
+                user.getFuncaoVisual()
         );
     }
 
@@ -68,7 +83,7 @@ public class UserService {
 
     public User criar(User user) {
 
-        if (repository.findByEmail(user.getEmail()).isPresent()) {
+        if (repository.buscarPorEmail(user.getEmail()).isPresent()) {
             throw new RuntimeException("Email já cadastrado");
         }
 
@@ -89,10 +104,16 @@ public class UserService {
     // =========================================================
     // LISTAR
     // =========================================================
+    //
+    // Somente usuários da equipe de quem consulta (sem equipe -> vazio).
+    // A listagem da plataforma inteira fica no AdminService.
+    //
 
-    public List<User> listar() {
+    public List<User> listar(String usuarioId) {
 
-        return repository.findAll();
+        return equipeContexto.equipeDe(usuarioId)
+                .map(repository::findByEquipeId)
+                .orElse(List.of());
     }
 
 
@@ -107,26 +128,98 @@ public class UserService {
 
 
     // =========================================================
-    // ATUALIZAR
+    // ACESSO A OUTRO USUÁRIO (/users/{id})
     // =========================================================
+    //
+    // Permitido para o próprio usuário; fora isso, o alvo precisa ser da
+    // equipe de quem pede. Na leitura, também os clientes vinculados à
+    // equipe por pedidos. O resto se comporta como inexistente.
+    //
 
-    public User atualizar(
-            String id,
-            UserRequestDTO dto
+    public Optional<User> buscarParaUsuario(
+            String solicitanteId,
+            String id
     ) {
 
-        User user = repository.findById(id)
+        return alvoAcessivel(solicitanteId, id, true);
+    }
+
+    private Optional<User> alvoAcessivel(
+            String solicitanteId,
+            String alvoId,
+            boolean incluirClientesDaEquipe
+    ) {
+
+        Optional<User> alvo = repository.findById(alvoId);
+
+        if (alvo.isEmpty() || alvoId.equals(solicitanteId)) {
+            return alvo;
+        }
+
+        Optional<String> equipe =
+                equipeContexto.equipeDe(solicitanteId);
+
+        if (equipe.isEmpty()) {
+            return Optional.empty();
+        }
+
+        User usuario = alvo.get();
+
+        if (equipe.equals(equipeContexto.equipeDe(usuario))) {
+            return alvo;
+        }
+
+        if (incluirClientesDaEquipe
+                && usuario.getRole() == Role.CLIENTE
+                && pedidoRepository.existsByEquipeIdAndClienteId(
+                        equipe.get(),
+                        alvoId
+                )) {
+            return alvo;
+        }
+
+        return Optional.empty();
+    }
+
+    private User alvoEditavel(
+            String solicitanteId,
+            String id
+    ) {
+
+        return alvoAcessivel(solicitanteId, id, false)
                 .orElseThrow(() ->
                         new RuntimeException(
                                 "Usuário não encontrado"
                         )
                 );
+    }
 
 
-        user.setNome(dto.getNome());
-        user.setEmail(dto.getEmail());
-        user.setCpf(dto.getCpf());
-        user.setTelefone(dto.getTelefone());
+    // =========================================================
+    // ATUALIZAR
+    // =========================================================
+
+    public User atualizar(
+            String solicitanteId,
+            String id,
+            UserRequestDTO dto
+    ) {
+
+        User user = alvoEditavel(solicitanteId, id);
+
+        // Campo nulo = não mexer (antes virava null no banco).
+        if (dto.getNome() != null) {
+            user.setNome(dto.getNome());
+        }
+        if (dto.getEmail() != null) {
+            definirEmail(user, dto.getEmail());
+        }
+        if (dto.getCpf() != null) {
+            user.setCpf(dto.getCpf());
+        }
+        if (dto.getTelefone() != null) {
+            user.setTelefone(dto.getTelefone());
+        }
 
 
         // Só altera a role se uma nova role foi enviada
@@ -149,6 +242,9 @@ public class UserService {
             );
         }
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
 
         return repository.save(user);
     }
@@ -158,14 +254,12 @@ public class UserService {
     // DELETAR
     // =========================================================
 
-    public void deletar(String id) {
+    public void deletar(
+            String solicitanteId,
+            String id
+    ) {
 
-        if (!repository.existsById(id)) {
-
-            throw new RuntimeException(
-                    "Usuário não encontrado"
-            );
-        }
+        alvoEditavel(solicitanteId, id);
 
         repository.deleteById(id);
     }
@@ -201,6 +295,7 @@ public class UserService {
     // =========================================================
 
     public List<User> buscarPorNome(
+            String usuarioId,
             String nome
     ) {
 
@@ -214,15 +309,38 @@ public class UserService {
             );
         }
 
-        return repository.findByNomeIgnoreCaseContaining(
-                nome.trim()
-        );
+        return equipeContexto.equipeDe(usuarioId)
+                .map(equipeId ->
+                        repository.findByEquipeIdAndNomeIgnoreCaseContaining(
+                                equipeId,
+                                nome.trim()
+                        )
+                )
+                .orElse(List.of());
     }
 
 
     // =========================================================
     // SOLICITAR MUDANÇA DE EMAIL
     // =========================================================
+
+    // Só o próprio usuário troca o próprio email: trocar o de um colega
+    // permitiria tomar a conta dele confirmando o email novo.
+    public Map<String, String> solicitarMudancaEmail(
+            String solicitanteId,
+            String id,
+            String novoEmail
+    ) {
+
+        if (id == null || !id.equals(solicitanteId)) {
+
+            throw new RuntimeException(
+                    "Usuário não encontrado"
+            );
+        }
+
+        return solicitarMudancaEmail(id, novoEmail);
+    }
 
     public Map<String, String> solicitarMudancaEmail(
             String id,
@@ -237,8 +355,14 @@ public class UserService {
                 );
 
 
+        novoEmail = UserRepository.normalizarEmail(novoEmail);
+
+        if (novoEmail == null || novoEmail.isBlank()) {
+            throw new RuntimeException("Informe o novo e-mail");
+        }
+
         if (
-                repository.findByEmail(novoEmail)
+                repository.buscarPorEmail(novoEmail)
                         .isPresent()
         ) {
 
@@ -322,9 +446,14 @@ public class UserService {
 
         user.setEmailMudancaTokenExpira(null);
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
 
         repository.save(user);
     }
+
 
     // =========================================================
     // ATUALIZAR DADOS DO PERFIL
@@ -332,7 +461,7 @@ public class UserService {
 
     public User atualizarProprioPerfil(
             String id,
-            UserRequestDTO dto
+            PerfilUpdateRequestDTO dto
     ) {
 
         User user = repository.findById(id)
@@ -342,27 +471,356 @@ public class UserService {
                         )
                 );
 
-        user.setNome(dto.getNome());
-        user.setEmail(dto.getEmail());
-        user.setCpf(dto.getCpf());
-        user.setTelefone(dto.getTelefone());
+        // Só o que veio preenchido muda: antes um campo ausente virava null no banco
+        // (salvar só o nome apagava e-mail, CPF e telefone).
+        if (dto.getNome() != null) {
+            if (dto.getNome().isBlank()) {
+                throw new RuntimeException("O nome é obrigatório");
+            }
+            user.setNome(dto.getNome().trim());
+        }
+
+        if (dto.getCpf() != null) {
+            user.setCpf(dto.getCpf().trim());
+        }
+
+        if (dto.getTelefone() != null) {
+            user.setTelefone(dto.getTelefone().trim());
+        }
 
         if (dto.getSenha() != null && !dto.getSenha().isBlank()) {
+
+            if (dto.getSenhaAtual() == null
+                    || !encoder.matches(dto.getSenhaAtual(), user.getSenha())) {
+                throw new RuntimeException("Senha atual incorreta");
+            }
+
+            if (dto.getSenha().length() < 6) {
+                throw new RuntimeException("A nova senha deve ter pelo menos 6 caracteres");
+            }
+
             user.setSenha(
                     encoder.encode(dto.getSenha())
             );
         }
 
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
         return repository.save(user);
     }
+
+
+    /** Troca o e-mail já normalizado, recusando um que outra conta use (sem diferenciar caixa). */
+    void definirEmail(User user, String email) {
+        String normalizado = UserRepository.normalizarEmail(email);
+        repository.buscarPorEmail(normalizado)
+                .filter(outro -> !outro.getId().equals(user.getId()))
+                .ifPresent(outro -> {
+                    throw new RuntimeException("Este email já está em uso");
+                });
+        user.setEmail(normalizado);
+    }
+
 
     // =========================================================
     // LISTAGEM DE CLIENTES PARA PEDIDOS
     // =========================================================
-    public List<User> listarClientes() {
-        return repository.findAll()
+    //
+    // Clientes não pertencem a equipe: os "clientes da equipe" são os
+    // clientes com pelo menos um pedido na equipe de quem consulta
+    // (sem equipe -> vazio). Não existe listagem de todos os clientes
+    // da plataforma fora do /admin.
+    //
+
+    public List<User> listarClientes(String usuarioId) {
+
+        return equipeContexto.equipeDe(usuarioId)
+                .map(this::clientesComPedidoNaEquipe)
+                .orElse(List.of());
+    }
+
+    private List<User> clientesComPedidoNaEquipe(String equipeId) {
+
+        Set<String> clienteIds =
+                pedidoRepository.findClienteIdsByEquipeId(equipeId)
+                        .stream()
+                        .map(Pedido::getClienteId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (clienteIds.isEmpty()) {
+            return List.of();
+        }
+
+        return repository.findAllById(clienteIds)
                 .stream()
-                .filter(user -> user.getRole() == Role.CLIENTE)
+                .filter(user ->
+                        user.getRole() == Role.CLIENTE
+                )
+                .sorted(Comparator.comparing(
+                        User::getNome,
+                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
+                ))
                 .toList();
+    }
+
+
+    // =========================================================
+    // BUSCAR CLIENTE POR EMAIL (para vincular a um pedido)
+    // =========================================================
+    //
+    // Email exato, sem diferenciar maiúsculas; só devolve usuários
+    // CLIENTE (outros perfis se comportam como inexistentes). Exige
+    // equipe: a busca só serve para vincular cliente a pedido da equipe.
+    //
+
+    public Optional<User> buscarClientePorEmail(
+            String usuarioId,
+            String email
+    ) {
+
+        equipeContexto.equipeObrigatoria(usuarioId);
+
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+
+        String padrao =
+                "^" + Pattern.quote(email.trim()) + "$";
+
+        return repository.findByEmailPadraoIgnorandoCaixa(padrao)
+                .stream()
+                .filter(user ->
+                        user.getRole() == Role.CLIENTE
+                )
+                .findFirst();
+    }
+
+    public ClienteResumoDTO toClienteResumoDTO(User user) {
+
+        return new ClienteResumoDTO(
+                user.getId(),
+                user.getNome(),
+                user.getEmail()
+        );
+    }
+
+
+    // =========================================================
+    // VÍNCULO COM EQUIPE
+    // =========================================================
+
+    public User vincularEquipe(
+            String usuarioId,
+            String equipeId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        user.setEquipeId(equipeId);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+        return repository.save(user);
+    }
+
+
+    public User desvincularEquipe(
+            String usuarioId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        user.setEquipeId(null);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+        return repository.save(user);
+    }
+
+
+    // =========================================================
+    // ENTRAR EM EQUIPE
+    // =========================================================
+
+    public User entrarNaEquipe(
+            String usuarioId,
+            String equipeId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+
+        // -----------------------------------------------------
+        // O usuário precisa ser CLIENTE
+        // -----------------------------------------------------
+
+        if (user.getRole() != Role.CLIENTE) {
+
+            throw new RuntimeException(
+                    "Somente clientes podem entrar em uma equipe"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // O usuário não pode estar em outra equipe
+        // -----------------------------------------------------
+
+        if (user.getEquipeId() != null) {
+
+            throw new RuntimeException(
+                    "Este usuário já pertence a uma equipe"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // Vincula equipe
+        // CLIENTE → TECNICO
+        // -----------------------------------------------------
+
+        user.setEquipeId(equipeId);
+
+        user.setRole(Role.TECNICO);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+
+        return repository.save(user);
+    }
+
+
+    // =========================================================
+    // SAIR DA EQUIPE
+    // =========================================================
+
+    public User sairDaEquipe(
+            String usuarioId,
+            String equipeId
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+
+        // -----------------------------------------------------
+        // O usuário precisa ser TECNICO
+        // -----------------------------------------------------
+
+        if (user.getRole() != Role.TECNICO) {
+
+            throw new RuntimeException(
+                    "O usuário não é um técnico"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // Confere se pertence à equipe informada
+        // -----------------------------------------------------
+
+        if (
+                user.getEquipeId() == null
+                        || !user.getEquipeId().equals(equipeId)
+        ) {
+
+            throw new RuntimeException(
+                    "O usuário não pertence a esta equipe"
+            );
+        }
+
+
+        // -----------------------------------------------------
+        // Remove vínculo
+        // TECNICO → CLIENTE
+        // -----------------------------------------------------
+
+        user.setEquipeId(null);
+
+        user.setRole(Role.CLIENTE);
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+
+        return repository.save(user);
+    }
+
+
+    // =========================================================
+    // LISTAR USUÁRIOS DA EQUIPE
+    // =========================================================
+
+    public List<User> listarPorEquipeId(
+            String equipeId
+    ) {
+
+        return repository.findByEquipeId(
+                equipeId
+        );
+    }
+
+    // =========================================================
+    // ATUALIZAR FUNÇÃO VISUAL DO INTEGRANTE
+    // =========================================================
+
+    public User atualizarFuncaoVisual(
+            String usuarioId,
+            String funcaoVisual
+    ) {
+
+        User user = repository.findById(usuarioId)
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Usuário não encontrado"
+                        )
+                );
+
+        if (funcaoVisual == null
+                || funcaoVisual.isBlank()) {
+
+            user.setFuncaoVisual(null);
+
+        } else {
+
+            user.setFuncaoVisual(
+                    funcaoVisual.trim()
+            );
+        }
+
+        user.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+        return repository.save(user);
     }
 }

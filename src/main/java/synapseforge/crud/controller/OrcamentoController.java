@@ -3,16 +3,24 @@ package synapseforge.crud.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
+import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.bson.types.ObjectId;
 import org.springframework.security.core.Authentication;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import synapseforge.crud.DTO.Orcamento.CalcularOrcamentoRequestDTO;
 import synapseforge.crud.DTO.Orcamento.OrcamentoResponseDTO;
 import synapseforge.crud.service.OrcamentoService;
+import org.springframework.security.access.prepost.PreAuthorize;
+import synapseforge.crud.service.ArquivoUtils;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -28,17 +36,20 @@ public class OrcamentoController {
     private final OrcamentoService service;
     private final GridFsTemplate gridFsTemplate;
 
+    @PreAuthorize("hasRole('GERENTE')")
     @PostMapping("/calcular")
-    public OrcamentoResponseDTO calcular(@RequestBody @Valid CalcularOrcamentoRequestDTO dto) {
-        return service.calcular(dto);
+    public OrcamentoResponseDTO calcular(@RequestBody @Valid CalcularOrcamentoRequestDTO dto, Authentication auth) {
+        return service.calcular(dto, (String) auth.getPrincipal());
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public OrcamentoResponseDTO salvar(@RequestBody @Valid CalcularOrcamentoRequestDTO dto, Authentication auth) {
         return service.salvar(dto, (String) auth.getPrincipal());
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public OrcamentoResponseDTO salvarComArquivos(
@@ -70,6 +81,10 @@ public class OrcamentoController {
         dto.setCustoMaoDeObraHora(custoMaoDeObraHora);
         dto.setMargemLucro(margemLucro);
 
+        // Equipe e material validados ANTES de gravar no GridFS (o cálculo recusa
+        // sem equipe ou material inexistente/inativo): nada fica órfão.
+        service.calcular(dto, (String) auth.getPrincipal());
+
         String objeto3DFileId = armazenarArquivo(objeto3D);
         List<String> imagensReferenciaFileIds = new ArrayList<>();
         if (imagensReferencia != null) {
@@ -82,21 +97,57 @@ public class OrcamentoController {
         return service.salvar(dto, (String) auth.getPrincipal(), objeto3DFileId, imagensReferenciaFileIds);
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @GetMapping
     public List<OrcamentoResponseDTO> listar(Authentication auth) {
         return service.listar((String) auth.getPrincipal());
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @GetMapping("/{id}")
     public OrcamentoResponseDTO buscarPorId(@PathVariable String id, Authentication auth) {
         return service.buscarPorId(id, (String) auth.getPrincipal());
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
+    @GetMapping("/{id}/obj3d")
+    public ResponseEntity<InputStreamResource> baixarObjeto3D(
+            @PathVariable String id,
+            Authentication auth
+    ) throws IOException {
+        OrcamentoResponseDTO orcamento = buscarPorId(id, auth);
+        String fileId = orcamento.getObjeto3DFileId();
+        if (fileId == null || !ObjectId.isValid(fileId)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return servirArquivo(fileId, true);
+    }
+
+    @PreAuthorize("hasRole('GERENTE')")
+    @GetMapping("/{id}/imagens/{imagemId}")
+    public ResponseEntity<InputStreamResource> visualizarImagem(
+            @PathVariable String id,
+            @PathVariable String imagemId,
+            Authentication auth
+    ) throws IOException {
+        OrcamentoResponseDTO orcamento = buscarPorId(id, auth);
+        if (!ObjectId.isValid(imagemId)
+                || orcamento.getImagensReferenciaIds().stream()
+                        .noneMatch(imagemId::equals)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return servirArquivo(imagemId, false);
+    }
+
+    @PreAuthorize("hasRole('GERENTE')")
     @PatchMapping("/{id}/aprovar")
     public OrcamentoResponseDTO aprovar(@PathVariable String id, Authentication auth) {
         return service.aprovar(id, (String) auth.getPrincipal());
     }
 
+    @PreAuthorize("hasRole('GERENTE')")
     @PatchMapping("/{id}/rejeitar")
     public OrcamentoResponseDTO rejeitar(@PathVariable String id, Authentication auth) {
         return service.rejeitar(id, (String) auth.getPrincipal());
@@ -110,5 +161,44 @@ public class OrcamentoController {
                 arquivo.getContentType()
         );
         return fileId.toHexString();
+    }
+
+    private ResponseEntity<InputStreamResource> servirArquivo(
+            String fileId,
+            boolean comoAnexo
+    ) throws IOException {
+        var gridFsFile = gridFsTemplate.findOne(
+                Query.query(Criteria.where("_id").is(new ObjectId(fileId)))
+        );
+        if (gridFsFile == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        GridFsResource resource = gridFsTemplate.getResource(gridFsFile);
+        MediaType mediaType = MediaType.parseMediaType(
+                ArquivoUtils.contentType(gridFsFile)
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(mediaType);
+        if (comoAnexo) {
+            headers.setContentDisposition(
+                    org.springframework.http.ContentDisposition.attachment()
+                            .filename(gridFsFile.getFilename())
+                            .build()
+            );
+        } else {
+            headers.setContentDisposition(
+                    org.springframework.http.ContentDisposition.inline()
+                            .filename(gridFsFile.getFilename())
+                            .build()
+            );
+        }
+
+        return new ResponseEntity<>(
+                new InputStreamResource(resource.getInputStream()),
+                headers,
+                HttpStatus.OK
+        );
     }
 }

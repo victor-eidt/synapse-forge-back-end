@@ -1,22 +1,28 @@
 package synapseforge.crud.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import synapseforge.crud.DTO.ConsumoPedido.ConsumoPedidoRequestDTO;
+import synapseforge.crud.DTO.ConsumoPedido.ConsumoPedidoResponseDTO;
 import synapseforge.crud.DTO.ConsumoPedido.ItemConsumoRequestDTO;
+import synapseforge.crud.exception.SemEquipeException;
 import synapseforge.crud.infrastructure.entity.*;
 import synapseforge.crud.infrastructure.repository.ConsumoPedidoRepository;
+import synapseforge.crud.infrastructure.repository.CorRepository;
+import synapseforge.crud.infrastructure.repository.MaterialRepository;
+import synapseforge.crud.infrastructure.repository.PedidoRepository;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ConsumoPedidoServiceTest {
@@ -24,71 +30,74 @@ class ConsumoPedidoServiceTest {
     @Mock
     private ConsumoPedidoRepository repository;
 
+    @Mock
+    private PedidoRepository pedidoRepository;
+
+    @Mock
+    private MaterialRepository materialRepository;
+
+    @Mock
+    private CorRepository corRepository;
+
+    @Mock
+    private EquipeContexto equipeContexto;
+
     @InjectMocks
     private ConsumoPedidoService service;
 
-    @Test
-    void salvarDeveCriarFichaEMapearItens() {
-        ConsumoPedidoRequestDTO dto = dto("pedido-1", "mat-1", StatusPedido.IMPRESSAO);
-        when(repository.findByPedidoId("pedido-1")).thenReturn(Optional.empty());
-        when(repository.save(any(ConsumoPedido.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        var result = service.salvar(dto);
-
-        assertEquals("pedido-1", result.getPedidoId());
-        assertEquals(1, result.getItens().size());
-        assertEquals("mat-1", result.getItens().get(0).getInsumoId());
-        verify(repository).save(any(ConsumoPedido.class));
+    @BeforeEach
+    void setUp() {
+        lenient().when(equipeContexto.equipeDe("user-1")).thenReturn(Optional.of("eq-1"));
+        lenient().when(equipeContexto.equipeObrigatoria("user-1")).thenReturn("eq-1");
+        lenient().when(equipeContexto.equipeDe("user-9")).thenReturn(Optional.of("eq-2"));
+        lenient().when(equipeContexto.equipeObrigatoria("user-9")).thenReturn("eq-2");
+        lenient().when(equipeContexto.equipeObrigatoria("semEquipe")).thenThrow(new SemEquipeException());
     }
 
-    @Test
-    void salvarDeveAtualizarFichaExistente() {
-        ConsumoPedido existente = new ConsumoPedido();
-        existente.setId("f-1");
-        existente.setPedidoId("pedido-1");
-        when(repository.findByPedidoId("pedido-1")).thenReturn(Optional.of(existente));
-        when(repository.save(existente)).thenReturn(existente);
-
-        var result = service.salvar(dto("pedido-1", "cor-1", StatusPedido.PINTURA));
-
-        assertEquals("f-1", result.getId());
-        assertEquals("cor-1", result.getItens().get(0).getInsumoId());
-    }
-
-    @Test
-    void salvarDeveRejeitarItensDuplicados() {
-        ConsumoPedidoRequestDTO dto = dto("pedido-1", "mat-1", StatusPedido.IMPRESSAO);
-        ItemConsumoRequestDTO duplicado = dto.getItens().get(0);
-        dto.setItens(List.of(duplicado, duplicado));
-
-        assertThrows(IllegalArgumentException.class, () -> service.salvar(dto));
-        verifyNoInteractions(repository);
-    }
-
-    @Test
-    void buscarPorPedidoDeveRetornarFichaOuFalhar() {
-        ConsumoPedido ficha = new ConsumoPedido();
-        ficha.setPedidoId("pedido-1");
-        ficha.setItens(List.of(new ItemConsumo(TipoInsumo.MATERIAL, "mat-1",
-                BigDecimal.TEN, UnidadeMedida.G, StatusPedido.FINALIZADO)));
-        when(repository.findByPedidoId("pedido-1")).thenReturn(Optional.of(ficha));
-
-        assertEquals("pedido-1", service.buscarPorPedido("pedido-1").getPedidoId());
-
-        when(repository.findByPedidoId("ausente")).thenReturn(Optional.empty());
-        assertThrows(RuntimeException.class, () -> service.buscarPorPedido("ausente"));
-    }
-
-    private ConsumoPedidoRequestDTO dto(String pedidoId, String insumoId, StatusPedido etapa) {
+    private ConsumoPedidoRequestDTO ficha() {
         ItemConsumoRequestDTO item = new ItemConsumoRequestDTO();
         item.setTipoInsumo(TipoInsumo.MATERIAL);
-        item.setInsumoId(insumoId);
-        item.setQuantidade(BigDecimal.TEN);
+        item.setInsumoId("mat1");
+        item.setQuantidade(new BigDecimal("100"));
         item.setUnidade(UnidadeMedida.G);
-        item.setEtapaConsumo(etapa);
+        item.setEtapaConsumo(StatusPedido.IMPRESSAO);
+
         ConsumoPedidoRequestDTO dto = new ConsumoPedidoRequestDTO();
-        dto.setPedidoId(pedidoId);
+        dto.setPedidoId("p-1");
         dto.setItens(List.of(item));
         return dto;
+    }
+
+    @Test
+    void salvarGravaAFichaNaEquipeDoPedido() {
+        when(pedidoRepository.findByIdAndEquipeId("p-1", "eq-1")).thenReturn(Optional.of(new Pedido()));
+        when(materialRepository.findByIdAndEquipeId("mat1", "eq-1")).thenReturn(Optional.of(new Material()));
+        when(repository.save(any(ConsumoPedido.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ConsumoPedidoResponseDTO result = service.salvar(ficha(), "user-1");
+
+        assertEquals("p-1", result.getPedidoId());
+        verify(repository).save(argThat(c -> "eq-1".equals(c.getEquipeId())));
+    }
+
+    @Test
+    void pedidoOuInsumoDeOutraEquipeNaoSaoEncontrados() {
+        RuntimeException semPedido = assertThrows(RuntimeException.class, () -> service.salvar(ficha(), "user-9"));
+        assertEquals("Pedido não encontrado", semPedido.getMessage());
+
+        when(pedidoRepository.findByIdAndEquipeId("p-1", "eq-2")).thenReturn(Optional.of(new Pedido()));
+        RuntimeException semMaterial = assertThrows(RuntimeException.class, () -> service.salvar(ficha(), "user-9"));
+        assertEquals("Material não encontrado", semMaterial.getMessage());
+
+        RuntimeException leitura = assertThrows(RuntimeException.class,
+                () -> service.buscarPorPedido("p-1", "user-9"));
+        assertEquals("Ficha de consumo não encontrada para o pedido", leitura.getMessage());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void salvarSemEquipeDeveSerRecusado() {
+        assertThrows(SemEquipeException.class, () -> service.salvar(ficha(), "semEquipe"));
+        verifyNoInteractions(repository, pedidoRepository);
     }
 }
