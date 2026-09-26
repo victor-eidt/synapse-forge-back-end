@@ -91,14 +91,7 @@ public class EstoqueService {
         );
     }
 
-    public List<AlertaEstoqueResponseDTO> listarEmAlerta() {
-        return listarEmAlerta(null);
-    }
-
     public List<AlertaEstoqueResponseDTO> listarEmAlerta(String usuarioId) {
-        if (equipeContexto == null) {
-            return List.of();
-        }
         return equipeContexto.equipeDe(usuarioId)
                 .map(this::listarEmAlertaDaEquipe)
                 .orElse(List.of());

@@ -16,6 +16,7 @@ import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -30,6 +31,9 @@ class EstoqueMetricasServiceTest {
     @Mock
     private EstoqueService estoqueService;
 
+    @Mock
+    private EquipeContexto equipeContexto;
+
     @InjectMocks
     private EstoqueMetricasService service;
 
@@ -41,19 +45,21 @@ class EstoqueMetricasServiceTest {
                 .thenReturn(result(List.of()));
         when(mongoTemplate.aggregate(any(), eq(synapseforge.crud.DTO.Estoque.CustoEtapaMetricaDTO.class)))
                 .thenReturn(result(List.of()));
+        when(equipeContexto.equipeDe("user-1")).thenReturn(Optional.of("eq-1"));
 
-        assertTrue(service.consumoPorInsumo(LocalDateTime.now().minusDays(1), LocalDateTime.now()).isEmpty());
-        assertTrue(service.consumoPorEtapa(LocalDateTime.now().minusDays(1), LocalDateTime.now()).isEmpty());
-        assertEquals(BigDecimal.ZERO, service.custoPorPedido("p-1").getCustoTotal());
+        assertTrue(service.consumoPorInsumo(LocalDateTime.now().minusDays(1), LocalDateTime.now(), "user-1").isEmpty());
+        assertTrue(service.consumoPorEtapa(LocalDateTime.now().minusDays(1), LocalDateTime.now(), "user-1").isEmpty());
+        assertEquals(BigDecimal.ZERO, service.custoPorPedido("p-1", "user-1").getCustoTotal());
     }
 
     @Test
     void consumoMedioSemanalDeveValidarSemanasERetornarZeroSemDados() {
         assertThrows(IllegalArgumentException.class,
-                () -> service.consumoMedioSemanal(TipoInsumo.MATERIAL, "m-1", 0));
+                () -> service.consumoMedioSemanal(TipoInsumo.MATERIAL, "m-1", 0, "user-1"));
         when(mongoTemplate.aggregate(any(), eq(Document.class))).thenReturn(result(List.of()));
+        when(equipeContexto.equipeDe("user-1")).thenReturn(Optional.of("eq-1"));
 
-        var response = service.consumoMedioSemanal(TipoInsumo.MATERIAL, "m-1", 4);
+        var response = service.consumoMedioSemanal(TipoInsumo.MATERIAL, "m-1", 4, "user-1");
 
         assertEquals(BigDecimal.ZERO, response.getMediaSemanal());
         assertEquals(4, response.getSemanasConsideradas());
@@ -61,8 +67,9 @@ class EstoqueMetricasServiceTest {
 
     @Test
     void insumosCriticosDeveRetornarVazioSemAlertas() {
-        when(estoqueService.listarEmAlerta()).thenReturn(List.of());
-        assertTrue(service.insumosCriticos().isEmpty());
+        when(equipeContexto.equipeDe("user-1")).thenReturn(Optional.of("eq-1"));
+        when(estoqueService.listarEmAlertaDaEquipe("eq-1")).thenReturn(List.of());
+        assertTrue(service.insumosCriticos("user-1").isEmpty());
         verifyNoInteractions(mongoTemplate);
     }
 
@@ -71,13 +78,14 @@ class EstoqueMetricasServiceTest {
         AlertaEstoqueResponseDTO alerta = new AlertaEstoqueResponseDTO(
                 TipoInsumo.MATERIAL, "m-1", "PLA", UnidadeMedida.G,
                 BigDecimal.valueOf(100), BigDecimal.valueOf(20));
-        when(estoqueService.listarEmAlerta()).thenReturn(List.of(alerta));
+        when(equipeContexto.equipeDe("user-1")).thenReturn(Optional.of("eq-1"));
+        when(estoqueService.listarEmAlertaDaEquipe("eq-1")).thenReturn(List.of(alerta));
         Document id = new Document("tipoInsumo", "MATERIAL").append("insumoId", "m-1");
         Document consumo = new Document("_id", id)
                 .append("totalConsumido", new Decimal128(BigDecimal.valueOf(50)));
         when(mongoTemplate.aggregate(any(), eq(Document.class))).thenReturn(result(List.of(consumo)));
 
-        var result = service.insumosCriticos();
+        var result = service.insumosCriticos("user-1");
 
         assertEquals(1, result.size());
         assertEquals(new BigDecimal("60.0"), result.get(0).getDiasCobertura());

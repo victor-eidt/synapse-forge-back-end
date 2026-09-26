@@ -34,5 +34,5 @@ public class AdminPedidoResponseDTO {
     private LocalDateTime criadoEm;
     private LocalDateTime atualizadoEm;
     private String objeto3DFileId;
-    private int quantidadeImagens;
+    private int quantidadeImagensReferencia;
 }
