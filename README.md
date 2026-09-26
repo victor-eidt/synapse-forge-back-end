@@ -44,6 +44,37 @@ spring.application.name=synapse-forge-db
 
 Também há suporte para upload de arquivos, email e CORS configurados por variáveis de ambiente.
 
+### Credenciais locais
+
+Credenciais ficam em `src/main/resources/application-secrets.properties` (ignorado pelo git). Copie o modelo e preencha:
+
+```bash
+cp src/main/resources/application-secrets.properties.example src/main/resources/application-secrets.properties
+```
+
+### Variáveis de ambiente
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `APP_URL` | `http://localhost:5173` | URL do front usada nos links de email |
+| `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Origens liberadas no CORS |
+| `APP_ADMIN_EMAILS` | vazio | Emails autorizados a usar `/admin/**` |
+| `APP_SWAGGER_ENABLED` | `true` | Liga/desliga o Swagger UI e o `/v3/api-docs` |
+| `APP_SEED_ENABLED` | `true` | Liga/desliga a criação dos dados de teste |
+
+> Em produção, use `APP_SWAGGER_ENABLED=false` e `APP_SEED_ENABLED=false`.
+
+---
+
+## ▶️ Como rodar
+
+Pré-requisitos: Java 17 e um MongoDB rodando em `localhost:27017`.
+
+```bash
+./mvnw spring-boot:run   # sobe a API em http://localhost:8081
+./mvnw verify            # build + testes
+```
+
 ---
 
 ## 🔐 Segurança e Autenticação
@@ -52,7 +83,7 @@ O backend possui autenticação baseada em JWT e controle de acesso por perfil d
 
 ### Roles disponíveis
 
-- **ADMIN** → administração geral
+- **ADMIN** → administração geral (as rotas `/admin/**` exigem, além do papel, que o email esteja em `APP_ADMIN_EMAILS`)
 - **GERENTE** → gestão de equipe e operações da loja
 - **TECNICO** → operação técnica e produção
 - **CLIENTE** → acesso ao cliente
@@ -76,7 +107,9 @@ O projeto agora inclui documentação interativa da API com Swagger UI.
 - Swagger UI: http://localhost:8081/swagger-ui/index.html
 - JSON da API: http://localhost:8081/v3/api-docs
 
-O Swagger também foi configurado para aceitar autenticação JWT via bearer token, permitindo testar endpoints protegidos diretamente pela interface.
+O Swagger também foi configurado para aceitar autenticação JWT via bearer token, permitindo testar endpoints protegidos diretamente pela interface: faça `POST /auth/login`, copie o `access_token` e cole em **Authorize**.
+
+As rotas do Swagger são públicas. Para não expor o mapa da API em produção, desligue com `APP_SWAGGER_ENABLED=false`.
 
 ---
 
@@ -136,7 +169,7 @@ O sistema conta com CRUD completo de usuários, incluindo:
 
 ## 🧪 Dados de Teste Inseridos automaticamente
 
-Ao iniciar a aplicação, o sistema cria automaticamente usuários e dados fictícios para facilitar testes de desenvolvimento e demonstração.
+Ao iniciar a aplicação, o sistema cria automaticamente usuários e dados fictícios para facilitar testes de desenvolvimento e demonstração. Isso pode ser desligado com `APP_SEED_ENABLED=false` (obrigatório em produção, já que todos usam a mesma senha).
 
 Esses dados foram inseridos para simular cenários reais do sistema, sem depender de um ambiente externo.
 
@@ -212,7 +245,7 @@ Exemplo:
 - gerente: `gerente@teste.com` / `1234`
 - técnico: `funcionario@teste.com` / `1234`
 
-> Esses usuários existem para facilitar testes de desenvolvimento e validação do front-end/backend em ambiente local.
+> Esses usuários existem para facilitar testes de desenvolvimento e validação do front-end/backend em ambiente local. Eles são criados sempre que `APP_SEED_ENABLED` não for `false`.
 
 ---
 
@@ -230,43 +263,24 @@ Caso os dados sejam inválidos, a API retorna erro automaticamente.
 
 ## 🌐 Endpoints principais
 
-### Autenticação
+A lista completa, com parâmetros e modelos de requisição/resposta, está no Swagger UI (`/swagger-ui/index.html`), que é gerado a partir do código e fica sempre atualizado. Visão geral por recurso:
 
-- `POST /auth/cadastro`
-- `POST /auth/login`
-- `GET /auth/confirmar-email/{token}`
-- `POST /auth/esqueci-senha`
-- `POST /auth/redefinir-senha`
-
-### Usuários
-
-- `GET /users`
-- `GET /users/{id}`
-- `POST /users`
-- `PUT /users/{id}`
-- `DELETE /users/{id}`
-
-### Equipes
-
-- `GET /equipes`
-- `GET /equipes/minha`
-- `POST /equipes`
-- `GET /equipes/convites/**`
-
-### Pedidos e produção
-
-- `GET /pedidos`
-- `POST /pedidos`
-- `PUT /pedidos/{id}`
-- `DELETE /pedidos/{id}`
-
-### Estoque, materiais e cores
-
-- `GET /estoque`
-- `GET /materiais`
-- `GET /cores`
-- `GET /misturas`
-- `GET /orcamentos`
+| Base | O que faz |
+|---|---|
+| `/auth` | cadastro (cliente e gerente), login, confirmação de email, esqueci/redefinir senha |
+| `/users` | CRUD de usuários, lote, perfil próprio (`/me`), busca de clientes, troca de email |
+| `/equipes` | criar/editar/excluir equipe, `/minha`, integrantes, convites, foto e banner |
+| `/pedidos` | CRUD de pedidos, avanço/regressão de status, cancelamento, objeto 3D e ordem de serviço |
+| `/orcamentos` | cálculo, criação (com arquivos), aprovação/rejeição, objeto 3D e imagens |
+| `/consumos-pedido` | registro e consulta do consumo de insumos por pedido |
+| `/estoque` | entrada, ajuste, saldo, movimentos e alertas de estoque |
+| `/estoque/metricas` | consumo por insumo/etapa, custo por pedido, média semanal, insumos críticos |
+| `/materiais` | CRUD de materiais |
+| `/cores` | CRUD de cores |
+| `/misturas` | CRUD de misturas |
+| `/ordens-pintura` | CRUD de ordens de pintura e avanço de etapa |
+| `/evento` | CRUD de eventos da agenda e busca por mês |
+| `/admin` | gestão de usuários e pedidos (restrito a administradores autorizados) |
 
 ---
 
