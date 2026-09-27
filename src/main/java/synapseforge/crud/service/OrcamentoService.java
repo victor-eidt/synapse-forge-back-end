@@ -2,13 +2,18 @@ package synapseforge.crud.service;
 
 import lombok.RequiredArgsConstructor;
 import org.bson.types.ObjectId;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.springframework.stereotype.Service;
 import com.mongodb.client.gridfs.model.GridFSFile;
+import synapseforge.crud.DTO.Comum.PaginaResponseDTO;
 import synapseforge.crud.DTO.Orcamento.CalcularOrcamentoRequestDTO;
+import synapseforge.crud.DTO.Orcamento.FiltroOrcamentoDTO;
+import synapseforge.crud.DTO.Orcamento.SituacaoOrcamento;
 import synapseforge.crud.DTO.Orcamento.OrcamentoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Material;
 import synapseforge.crud.infrastructure.entity.Orcamento;
@@ -22,6 +27,8 @@ import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.regex.Pattern;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -33,12 +40,14 @@ import java.util.List;
 public class OrcamentoService {
 
     private static final BigDecimal CEM = BigDecimal.valueOf(100);
+    private static final int TAMANHO_MAXIMO_PAGINA = 100;
 
     private final OrcamentoRepository repository;
     private final MaterialRepository materialRepository;
     private final PedidoRepository pedidoRepository;
     private final GridFsTemplate gridFsTemplate;
     private final EquipeContexto equipeContexto;
+    private final MongoTemplate mongoTemplate;
 
     /**
      * Calcula o orçamento sem persistir (útil para preview no front).
@@ -133,6 +142,96 @@ public class OrcamentoService {
                 .stream()
                 .map(orcamento -> toResponseDTO(orcamento, nomeMaterial(orcamento)))
                 .toList();
+    }
+
+    /**
+     * Busca paginada e filtrada (pendentes ou histórico). O filtro e a paginação
+     * rodam no MongoDB: só a página pedida sai do banco, então a tela não piora
+     * com o crescimento do histórico.
+     */
+    public PaginaResponseDTO<OrcamentoResponseDTO> buscar(
+            String usuarioId,
+            FiltroOrcamentoDTO filtro,
+            int pagina,
+            int tamanho
+    ) {
+        if (filtro.de() != null && filtro.ate() != null && filtro.de().isAfter(filtro.ate())) {
+            throw new RuntimeException("A data inicial não pode ser depois da data final");
+        }
+
+        int paginaValida = Math.max(pagina, 0);
+        int tamanhoValido = Math.min(Math.max(tamanho, 1), TAMANHO_MAXIMO_PAGINA);
+
+        Optional<String> equipe = equipeContexto.equipeDe(usuarioId);
+        if (equipe.isEmpty()) {
+            return new PaginaResponseDTO<>(List.of(), paginaValida, tamanhoValido, 0, false);
+        }
+
+        Criteria criteria = criteriosDaBusca(equipe.get(), filtro);
+
+        long total = mongoTemplate.count(new Query(criteria), Orcamento.class);
+
+        Query consulta = new Query(criteria)
+                // _id desempata registros com o mesmo criadoEm: sem ele a paginação
+                // pode repetir ou pular itens entre uma página e outra
+                .with(Sort.by(Sort.Direction.DESC, "criadoEm").and(Sort.by(Sort.Direction.DESC, "_id")))
+                .skip((long) paginaValida * tamanhoValido)
+                .limit(tamanhoValido);
+
+        List<OrcamentoResponseDTO> itens = mongoTemplate.find(consulta, Orcamento.class)
+                .stream()
+                .map(orcamento -> toResponseDTO(orcamento, nomeMaterial(orcamento)))
+                .toList();
+
+        boolean temMais = (long) (paginaValida + 1) * tamanhoValido < total;
+
+        return new PaginaResponseDTO<>(itens, paginaValida, tamanhoValido, total, temMais);
+    }
+
+    private Criteria criteriosDaBusca(String equipeId, FiltroOrcamentoDTO filtro) {
+        List<Criteria> criterios = new ArrayList<>();
+        criterios.add(Criteria.where("equipeId").is(equipeId));
+
+        SituacaoOrcamento situacao = filtro.situacao() == null
+                ? SituacaoOrcamento.PENDENTES
+                : filtro.situacao();
+
+        if (situacao == SituacaoOrcamento.PENDENTES) {
+            // orçamentos antigos não têm status gravado e contam como pendentes
+            // (mesma regra de status(orcamento)); is(null) também casa campo ausente
+            criterios.add(new Criteria().orOperator(
+                    Criteria.where("status").is(StatusOrcamento.PENDENTE),
+                    Criteria.where("status").is(null)
+            ));
+        } else {
+            criterios.add(Criteria.where("status").in(StatusOrcamento.APROVADO, StatusOrcamento.REJEITADO));
+        }
+
+        adicionarContem(criterios, "cliente", filtro.cliente());
+        adicionarContem(criterios, "projeto", filtro.projeto());
+
+        if (filtro.de() != null || filtro.ate() != null) {
+            Criteria data = Criteria.where("criadoEm");
+            if (filtro.de() != null) {
+                data = data.gte(filtro.de().atStartOfDay());
+            }
+            if (filtro.ate() != null) {
+                // "até" inclui o dia inteiro
+                data = data.lt(filtro.ate().plusDays(1).atStartOfDay());
+            }
+            criterios.add(data);
+        }
+
+        return new Criteria().andOperator(criterios);
+    }
+
+    // "contém", sem diferenciar maiúsculas. Pattern.quote: o texto digitado é
+    // literal (um "(" ou ".*" na busca não vira expressão regular)
+    private void adicionarContem(List<Criteria> criterios, String campo, String texto) {
+        if (texto == null || texto.isBlank()) {
+            return;
+        }
+        criterios.add(Criteria.where(campo).regex(Pattern.quote(texto.trim()), "i"));
     }
 
     public OrcamentoResponseDTO buscarPorId(String id, String usuarioId) {

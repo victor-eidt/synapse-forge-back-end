@@ -22,8 +22,16 @@ import synapseforge.crud.infrastructure.repository.PedidoRepository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Query;
+import synapseforge.crud.DTO.Comum.PaginaResponseDTO;
+import synapseforge.crud.DTO.Orcamento.FiltroOrcamentoDTO;
+import synapseforge.crud.DTO.Orcamento.SituacaoOrcamento;
 
 @ExtendWith(MockitoExtension.class)
 class OrcamentoServiceTest {
@@ -39,6 +47,9 @@ class OrcamentoServiceTest {
 
     @Mock
     private EquipeContexto equipeContexto;
+
+    @Mock
+    private MongoTemplate mongoTemplate;
 
     @InjectMocks
     private OrcamentoService service;
@@ -221,5 +232,108 @@ class OrcamentoServiceTest {
         assertThrows(SemEquipeException.class, () -> service.aprovar("o-1", "user-1"));
         assertThrows(SemEquipeException.class, () -> service.rejeitar("o-1", "user-1"));
         verifyNoInteractions(repository, pedidoRepository);
+    }
+    // =========================================================
+    // BUSCA PAGINADA
+    // =========================================================
+
+    private FiltroOrcamentoDTO filtro(SituacaoOrcamento situacao, String cliente, String projeto, LocalDate de, LocalDate ate) {
+        return new FiltroOrcamentoDTO(situacao, cliente, projeto, de, ate);
+    }
+
+    @Test
+    void buscarSemEquipeDeveRetornarPaginaVaziaSemConsultarOBanco() {
+        semEquipe("user-x");
+
+        PaginaResponseDTO<OrcamentoResponseDTO> pagina =
+                service.buscar("user-x", filtro(SituacaoOrcamento.PENDENTES, null, null, null, null), 0, 20);
+
+        assertTrue(pagina.getItens().isEmpty());
+        assertEquals(0, pagina.getTotal());
+        assertFalse(pagina.isTemMais());
+        verifyNoInteractions(mongoTemplate);
+    }
+
+    @Test
+    void buscarDeveRecusarIntervaloDeDatasInvertido() {
+        naEquipe("user-1", "eq-1");
+
+        assertThrows(RuntimeException.class, () -> service.buscar(
+                "user-1",
+                filtro(SituacaoOrcamento.DECIDIDOS, null, null, LocalDate.of(2026, 9, 10), LocalDate.of(2026, 9, 1)),
+                0, 20));
+        verifyNoInteractions(mongoTemplate);
+    }
+
+    @Test
+    void buscarDeveFiltrarPorEquipeTextoLiteralEDataNoBanco() {
+        naEquipe("user-1", "eq-1");
+        when(mongoTemplate.count(any(Query.class), eq(Orcamento.class))).thenReturn(0L);
+        when(mongoTemplate.find(any(Query.class), eq(Orcamento.class))).thenReturn(List.of());
+
+        service.buscar(
+                "user-1",
+                filtro(SituacaoOrcamento.DECIDIDOS, " Ana (VIP) ", "vaso", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30)),
+                0, 20);
+
+        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).find(captor.capture(), eq(Orcamento.class));
+        String consulta = captor.getValue().getQueryObject().toString();
+
+        assertTrue(consulta.contains("equipeId=eq-1"));
+        assertTrue(consulta.contains("APROVADO"));
+        assertTrue(consulta.contains("REJEITADO"));
+        // texto aparado e tratado como literal: o "(" não vira regex
+        assertTrue(consulta.contains("\\QAna (VIP)\\E"));
+        assertTrue(consulta.contains("\\Qvaso\\E"));
+        // "até 30/09" inclui o dia inteiro: limite exclusivo em 01/10
+        assertTrue(consulta.contains("2026-09-01T00:00"));
+        assertTrue(consulta.contains("2026-10-01T00:00"));
+    }
+
+    @Test
+    void buscarPendentesDeveIncluirOrcamentosSemStatus() {
+        naEquipe("user-1", "eq-1");
+        when(mongoTemplate.find(any(Query.class), eq(Orcamento.class))).thenReturn(List.of());
+
+        service.buscar("user-1", filtro(SituacaoOrcamento.PENDENTES, null, null, null, null), 0, 20);
+
+        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).find(captor.capture(), eq(Orcamento.class));
+        String consulta = captor.getValue().getQueryObject().toString();
+
+        assertTrue(consulta.contains("PENDENTE"));
+        assertTrue(consulta.contains("status=null"));
+    }
+
+    @Test
+    void buscarDevePaginarNoBancoELimitarOTamanho() {
+        naEquipe("user-1", "eq-1");
+        when(mongoTemplate.count(any(Query.class), eq(Orcamento.class))).thenReturn(1000L);
+        when(mongoTemplate.find(any(Query.class), eq(Orcamento.class))).thenReturn(List.of());
+
+        PaginaResponseDTO<OrcamentoResponseDTO> pagina =
+                service.buscar("user-1", filtro(SituacaoOrcamento.DECIDIDOS, null, null, null, null), 2, 500);
+
+        ArgumentCaptor<Query> captor = ArgumentCaptor.forClass(Query.class);
+        verify(mongoTemplate).find(captor.capture(), eq(Orcamento.class));
+
+        assertEquals(100, captor.getValue().getLimit());
+        assertEquals(200, captor.getValue().getSkip());
+        assertEquals(100, pagina.getTamanho());
+        assertEquals(1000, pagina.getTotal());
+        assertTrue(pagina.isTemMais());
+    }
+
+    @Test
+    void buscarNaUltimaPaginaNaoDeveIndicarMais() {
+        naEquipe("user-1", "eq-1");
+        when(mongoTemplate.count(any(Query.class), eq(Orcamento.class))).thenReturn(45L);
+        when(mongoTemplate.find(any(Query.class), eq(Orcamento.class))).thenReturn(List.of());
+
+        PaginaResponseDTO<OrcamentoResponseDTO> pagina =
+                service.buscar("user-1", filtro(SituacaoOrcamento.DECIDIDOS, null, null, null, null), 2, 20);
+
+        assertFalse(pagina.isTemMais());
     }
 }
