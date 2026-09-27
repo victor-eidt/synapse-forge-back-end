@@ -7,7 +7,9 @@ import synapseforge.crud.DTO.Notificacao.NotificacaoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Notificacao;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.TipoNotificacao;
+import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.NotificacaoRepository;
+import synapseforge.crud.infrastructure.repository.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,15 +20,18 @@ import java.util.List;
 public class NotificacaoService {
 
     private final NotificacaoRepository repository;
+    private final UserRepository userRepository;
+    private final EmailService emailService;
 
 
     // =========================================================
-    // PEDIDO FINALIZADO -> avisa o cliente vinculado
+    // PEDIDO FINALIZADO -> avisa o cliente vinculado (sino + email)
     // =========================================================
     //
     // Nunca derruba a mudança de etapa: se falhar, só registra no log.
     // Se o pedido regredir e for finalizado de novo enquanto o aviso
-    // anterior não foi lido, não duplica.
+    // anterior não foi lido, não duplica (nem o sino, nem o email).
+    // Sino e email são independentes: falha no SMTP não apaga o aviso.
     //
 
     public void notificarPedidoFinalizado(Pedido pedido) {
@@ -61,6 +66,43 @@ public class NotificacaoService {
 
             log.warn(
                     "Não foi possível registrar a notificação de pedido finalizado {}: {}",
+                    pedido.getId(),
+                    e.getMessage()
+            );
+        }
+
+        enviarEmailPedidoFinalizado(pedido);
+    }
+
+    private void enviarEmailPedidoFinalizado(Pedido pedido) {
+
+        try {
+
+            User cliente = userRepository.findById(pedido.getClienteId())
+                    .orElse(null);
+
+            if (cliente == null
+                    || cliente.getEmail() == null
+                    || cliente.getEmail().isBlank()) {
+
+                log.warn(
+                        "Email de pedido finalizado não enviado: cliente {} não encontrado ou sem email.",
+                        pedido.getClienteId()
+                );
+                return;
+            }
+
+            emailService.enviarPedidoFinalizado(
+                    cliente.getEmail(),
+                    cliente.getNome(),
+                    pedido.getProjeto(),
+                    pedido.getId()
+            );
+
+        } catch (RuntimeException e) {
+
+            log.warn(
+                    "Falha ao enviar email de pedido finalizado {}: {}",
                     pedido.getId(),
                     e.getMessage()
             );
