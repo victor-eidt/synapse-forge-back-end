@@ -1,0 +1,23 @@
+package synapseforge.crud.infrastructure.repository;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+import synapseforge.crud.infrastructure.entity.Notificacao;
+import synapseforge.crud.infrastructure.entity.TipoNotificacao;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface NotificacaoRepository extends MongoRepository<Notificacao, String> {
+
+    List<Notificacao> findTop50ByUsuarioIdOrderByCriadaEmDesc(String usuarioId);
+
+    List<Notificacao> findByUsuarioIdAndLidaFalseOrderByCriadaEmDesc(String usuarioId);
+
+    Optional<Notificacao> findByIdAndUsuarioId(String id, String usuarioId);
+
+    boolean existsByUsuarioIdAndTipoAndReferenciaIdAndLidaFalse(
+            String usuarioId,
+            TipoNotificacao tipo,
+            String referenciaId
+    );
+}
