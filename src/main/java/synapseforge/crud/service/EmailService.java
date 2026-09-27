@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -433,6 +434,63 @@ public class EmailService {
                 "Convite recusado – SynapseForge",
                 html
         );
+    }
+
+
+    // =========================================================
+    // NOTIFICAÇÃO AO CLIENTE — PEDIDO FINALIZADO
+    // =========================================================
+
+    public void enviarPedidoFinalizado(
+            String destinatario,
+            String nomeCliente,
+            String projeto,
+            String pedidoId
+    ) {
+
+        // O link abre o detalhe do pedido no dashboard (o front lê ?pedido=<id>)
+        String link =
+                appUrl + "/dashboard?pedido="
+                        + URLEncoder.encode(
+                        pedidoId,
+                        StandardCharsets.UTF_8
+                );
+
+        // Nome do projeto e do cliente vêm de texto livre: escapados antes de entrar no HTML
+        String nome = nomeCliente == null || nomeCliente.isBlank()
+                ? ""
+                : ", " + HtmlUtils.htmlEscape(nomeCliente);
+
+        String html = buildHtml(
+                "Pedido finalizado",
+                "Olá" + nome + "!",
+                "Seu pedido <strong>"
+                        + HtmlUtils.htmlEscape(projeto == null ? "" : projeto)
+                        + "</strong> ("
+                        + referenciaPedido(pedidoId)
+                        + ") foi finalizado e está pronto. "
+                        + "Clique no botão abaixo para ver os detalhes.",
+                link,
+                "Ver pedido",
+                "Você recebeu este email porque tem um pedido "
+                        + "vinculado à sua conta SynapseForge."
+        );
+
+        enviar(
+                destinatario,
+                "Seu pedido foi finalizado – SynapseForge",
+                html
+        );
+    }
+
+    // Mesmo código curto exibido no front (#26D73): últimos 5 caracteres do id
+    private String referenciaPedido(String pedidoId) {
+
+        String limpo = pedidoId == null
+                ? ""
+                : pedidoId.replaceAll("[^a-zA-Z0-9]", "");
+
+        return "#" + limpo.substring(Math.max(0, limpo.length() - 5)).toUpperCase();
     }
 
 
