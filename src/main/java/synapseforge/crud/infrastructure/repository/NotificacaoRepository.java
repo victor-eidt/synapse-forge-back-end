@@ -11,6 +11,8 @@ public interface NotificacaoRepository extends MongoRepository<Notificacao, Stri
 
     List<Notificacao> findTop50ByUsuarioIdOrderByCriadaEmDesc(String usuarioId);
 
+    List<Notificacao> findTop50ByUsuarioIdAndLidaFalseOrderByCriadaEmDesc(String usuarioId);
+
     List<Notificacao> findByUsuarioIdAndLidaFalseOrderByCriadaEmDesc(String usuarioId);
 
     Optional<Notificacao> findByIdAndUsuarioId(String id, String usuarioId);
