@@ -10,6 +10,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import synapseforge.crud.exception.RecursoNaoEncontradoException;
 import synapseforge.crud.infrastructure.entity.Notificacao;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.TipoNotificacao;
@@ -125,7 +126,7 @@ class NotificacaoServiceTest {
     void marcarComoLidaDeveExigirQueSejaDoUsuario() {
         when(repository.findByIdAndUsuarioId("n-1", "outro")).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> service.marcarComoLida("n-1", "outro"));
+        assertThrows(RecursoNaoEncontradoException.class, () -> service.marcarComoLida("n-1", "outro"));
         verify(repository, never()).save(any());
     }
 
@@ -154,5 +155,14 @@ class NotificacaoServiceTest {
         assertTrue(a.isLida());
         assertTrue(b.isLida());
         verify(repository).saveAll(List.of(a, b));
+    }
+
+    @Test
+    void listarNaoLidasDeveUsarConsultaLimitada() {
+        Notificacao a = new Notificacao();
+        when(repository.findTop50ByUsuarioIdAndLidaFalseOrderByCriadaEmDesc("cli-1")).thenReturn(List.of(a));
+
+        assertEquals(List.of(a), service.listar("cli-1", true));
+        verify(repository, never()).findByUsuarioIdAndLidaFalseOrderByCriadaEmDesc(any());
     }
 }

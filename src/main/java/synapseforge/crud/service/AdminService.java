@@ -10,6 +10,7 @@ import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 import synapseforge.crud.DTO.Admin.AdminUserUpdateRequestDTO;
 import synapseforge.crud.infrastructure.entity.Role;
+import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.DTO.Admin.AdminPedidoUpdateRequestDTO;
 
 import java.util.List;
@@ -20,6 +21,7 @@ public class AdminService {
 
     private final UserRepository userRepository;
     private final PedidoRepository pedidoRepository;
+    private final NotificacaoService notificacaoService;
 
     // =========================================================
     // USUÁRIOS
@@ -163,6 +165,8 @@ public class AdminService {
                         )
                 );
 
+        StatusPedido statusAnterior = pedido.getStatus();
+
         if (dto.getClienteId() != null) {
             pedido.setClienteId(dto.getClienteId());
         }
@@ -261,6 +265,11 @@ public class AdminService {
 
         Pedido atualizado =
                 pedidoRepository.save(pedido);
+
+        if (statusAnterior != StatusPedido.FINALIZADO
+                && atualizado.getStatus() == StatusPedido.FINALIZADO) {
+            notificacaoService.notificarPedidoFinalizado(atualizado);
+        }
 
         return toAdminPedidoResponseDTO(atualizado);
     }

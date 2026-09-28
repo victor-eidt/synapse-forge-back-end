@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.Notificacao.NotificacaoResponseDTO;
+import synapseforge.crud.exception.RecursoNaoEncontradoException;
 import synapseforge.crud.infrastructure.entity.Notificacao;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.TipoNotificacao;
@@ -116,8 +117,9 @@ public class NotificacaoService {
 
     public List<Notificacao> listar(String usuarioId, boolean apenasNaoLidas) {
 
+        // Limitado como a listagem completa: o sino consulta isto a cada minuto
         if (apenasNaoLidas) {
-            return repository.findByUsuarioIdAndLidaFalseOrderByCriadaEmDesc(usuarioId);
+            return repository.findTop50ByUsuarioIdAndLidaFalseOrderByCriadaEmDesc(usuarioId);
         }
 
         return repository.findTop50ByUsuarioIdOrderByCriadaEmDesc(usuarioId);
@@ -135,7 +137,7 @@ public class NotificacaoService {
 
         Notificacao notificacao = repository.findByIdAndUsuarioId(id, usuarioId)
                 .orElseThrow(() ->
-                        new RuntimeException("Notificação não encontrada")
+                        new RecursoNaoEncontradoException("Notificação não encontrada")
                 );
 
         if (!notificacao.isLida()) {
