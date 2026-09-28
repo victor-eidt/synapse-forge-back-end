@@ -14,7 +14,9 @@ import synapseforge.crud.exception.RecursoNaoEncontradoException;
 import synapseforge.crud.infrastructure.entity.Notificacao;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.TipoNotificacao;
+import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.NotificacaoRepository;
+import synapseforge.crud.infrastructure.repository.UserRepository;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +26,12 @@ class NotificacaoServiceTest {
 
     @Mock
     private NotificacaoRepository repository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private EmailService emailService;
 
     @InjectMocks
     private NotificacaoService service;
@@ -56,7 +64,57 @@ class NotificacaoServiceTest {
     void pedidoSemClienteNaoDeveNotificar() {
         service.notificarPedidoFinalizado(pedido(null));
 
-        verifyNoInteractions(repository);
+        verifyNoInteractions(repository, emailService);
+    }
+
+    private User cliente(String email) {
+        User u = new User();
+        u.setId("cli-1");
+        u.setNome("Ana");
+        u.setEmail(email);
+        u.setEmailConfirmado(true);
+        return u;
+    }
+
+    @Test
+    void pedidoFinalizadoDeveEnviarEmailAoCliente() {
+        when(userRepository.findById("cli-1")).thenReturn(Optional.of(cliente("ana@x.com")));
+
+        service.notificarPedidoFinalizado(pedido("cli-1"));
+
+        verify(emailService).enviarPedidoFinalizado("ana@x.com", "Ana", "Miniatura dragão", "p-1");
+    }
+
+    @Test
+    void clienteSemEmailNaoDeveEnviarMasMantemOAviso() {
+        when(userRepository.findById("cli-1")).thenReturn(Optional.of(cliente(" ")));
+
+        service.notificarPedidoFinalizado(pedido("cli-1"));
+
+        verify(repository).save(any());
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void clienteComEmailNaoConfirmadoNaoDeveReceberEmail() {
+        User u = cliente("ana@x.com");
+        u.setEmailConfirmado(false);
+        when(userRepository.findById("cli-1")).thenReturn(Optional.of(u));
+
+        service.notificarPedidoFinalizado(pedido("cli-1"));
+
+        verify(repository).save(any());
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void falhaNoEmailNaoDevePropagar() {
+        when(userRepository.findById("cli-1")).thenReturn(Optional.of(cliente("ana@x.com")));
+        doThrow(new RuntimeException("smtp fora")).when(emailService)
+                .enviarPedidoFinalizado(any(), any(), any(), any());
+
+        assertDoesNotThrow(() -> service.notificarPedidoFinalizado(pedido("cli-1")));
+        verify(repository).save(any());
     }
 
     @Test
@@ -67,6 +125,7 @@ class NotificacaoServiceTest {
         service.notificarPedidoFinalizado(pedido("cli-1"));
 
         verify(repository, never()).save(any());
+        verifyNoInteractions(emailService);
     }
 
     @Test
