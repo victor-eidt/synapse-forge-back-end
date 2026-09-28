@@ -60,6 +60,9 @@ class PedidoServiceTest {
     @Mock
     private EquipeContexto equipeContexto;
 
+    @Mock
+    private NotificacaoService notificacaoService;
+
     @InjectMocks
     private PedidoService service;
 
@@ -124,6 +127,38 @@ class PedidoServiceTest {
         Pedido result = service.avancarStatus("p-1", "user-1", Role.ADMIN);
 
         assertEquals(StatusPedido.IMPRESSAO, result.getStatus());
+    }
+
+    @Test
+    void avancarParaFinalizadoDeveNotificarCliente() {
+        Pedido pedido = new Pedido();
+        pedido.setId("p-1");
+        pedido.setUsuarioId("user-1");
+        pedido.setClienteId("cliente-1");
+        pedido.setStatus(StatusPedido.ACABAMENTO);
+
+        when(repository.findByIdAndEquipeId("p-1", "eq-1")).thenReturn(Optional.of(pedido));
+        when(repository.save(pedido)).thenReturn(pedido);
+
+        service.avancarStatus("p-1", "user-1", Role.ADMIN);
+
+        verify(notificacaoService).notificarPedidoFinalizado(pedido);
+    }
+
+    @Test
+    void avancarParaEtapaIntermediariaNaoDeveNotificar() {
+        Pedido pedido = new Pedido();
+        pedido.setId("p-1");
+        pedido.setUsuarioId("user-1");
+        pedido.setClienteId("cliente-1");
+        pedido.setStatus(StatusPedido.MODELAGEM);
+
+        when(repository.findByIdAndEquipeId("p-1", "eq-1")).thenReturn(Optional.of(pedido));
+        when(repository.save(pedido)).thenReturn(pedido);
+
+        service.avancarStatus("p-1", "user-1", Role.ADMIN);
+
+        verifyNoInteractions(notificacaoService);
     }
 
     @Test
