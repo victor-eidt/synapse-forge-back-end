@@ -55,6 +55,13 @@ public class GlobalExceptionHandler {
                 .body(ex.getMessage());
     }
 
+    @ExceptionHandler(RecursoNaoEncontradoException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public String handleRecursoNaoEncontradoException(RecursoNaoEncontradoException ex) {
+        logger.warn("Not Found - RecursoNaoEncontradoException: {}", ex.getMessage());
+        return ex.getMessage();
+    }
+
     // @PreAuthorize negado: sem isto caía no handler de RuntimeException e virava 400
     @ExceptionHandler(AccessDeniedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
