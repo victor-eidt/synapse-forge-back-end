@@ -72,6 +72,7 @@ class NotificacaoServiceTest {
         u.setId("cli-1");
         u.setNome("Ana");
         u.setEmail(email);
+
         u.setEmailConfirmado(true);
         return u;
     }
@@ -96,6 +97,7 @@ class NotificacaoServiceTest {
     }
 
     @Test
+
     void clienteComEmailNaoConfirmadoNaoDeveReceberEmail() {
         User u = cliente("ana@x.com");
         u.setEmailConfirmado(false);
