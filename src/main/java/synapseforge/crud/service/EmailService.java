@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
@@ -441,6 +442,9 @@ public class EmailService {
     // NOTIFICAÇÃO AO CLIENTE — PEDIDO FINALIZADO
     // =========================================================
 
+    // Assíncrono: chamado ao finalizar o pedido, não pode segurar a requisição
+    // esperando o SMTP. Falha aqui só vai para o log (AsyncUncaughtExceptionHandler).
+    @Async
     public void enviarPedidoFinalizado(
             String destinatario,
             String nomeCliente,
