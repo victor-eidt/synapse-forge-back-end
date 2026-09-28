@@ -103,7 +103,6 @@ public class NotificacaoService {
                 );
                 return;
             }
-
             emailService.enviarPedidoFinalizado(
                     cliente.getEmail(),
                     cliente.getNome(),

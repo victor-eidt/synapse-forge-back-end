@@ -16,7 +16,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import synapseforge.crud.DTO.Comum.PaginaResponseDTO;
 import synapseforge.crud.DTO.Orcamento.CalcularOrcamentoRequestDTO;
+import synapseforge.crud.DTO.Orcamento.FiltroOrcamentoDTO;
+import synapseforge.crud.DTO.Orcamento.SituacaoOrcamento;
 import synapseforge.crud.DTO.Orcamento.OrcamentoResponseDTO;
 import synapseforge.crud.service.OrcamentoService;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -101,6 +104,30 @@ public class OrcamentoController {
     @GetMapping
     public List<OrcamentoResponseDTO> listar(Authentication auth) {
         return service.listar((String) auth.getPrincipal());
+    }
+
+    /**
+     * Busca paginada: GET /orcamentos/busca?situacao=PENDENTES&cliente=ana&de=2026-09-01&pagina=0&tamanho=20
+     * `de`/`ate` filtram pela data de criação (inclusivas); tamanho máximo 100.
+     */
+    @PreAuthorize("hasRole('GERENTE')")
+    @GetMapping("/busca")
+    public PaginaResponseDTO<OrcamentoResponseDTO> buscar(
+            @RequestParam(defaultValue = "PENDENTES") SituacaoOrcamento situacao,
+            @RequestParam(required = false) String cliente,
+            @RequestParam(required = false) String projeto,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate de,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate ate,
+            @RequestParam(defaultValue = "0") int pagina,
+            @RequestParam(defaultValue = "20") int tamanho,
+            Authentication auth
+    ) {
+        return service.buscar(
+                (String) auth.getPrincipal(),
+                new FiltroOrcamentoDTO(situacao, cliente, projeto, de, ate),
+                pagina,
+                tamanho
+        );
     }
 
     @PreAuthorize("hasRole('GERENTE')")
