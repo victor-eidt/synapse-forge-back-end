@@ -93,6 +93,17 @@ public class NotificacaoService {
                 return;
             }
 
+            // Email não confirmado pode ter sido digitado errado (ou ser de outra
+            // pessoa): não manda dados do pedido para um endereço não verificado
+            if (!cliente.isEmailConfirmado()) {
+
+                log.info(
+                        "Email de pedido finalizado não enviado: cliente {} sem email confirmado.",
+                        pedido.getClienteId()
+                );
+                return;
+            }
+
             emailService.enviarPedidoFinalizado(
                     cliente.getEmail(),
                     cliente.getNome(),
