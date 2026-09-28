@@ -18,4 +18,12 @@ class GlobalExceptionHandlerTest {
         assertEquals("SEM_EQUIPE", resposta.getHeaders().getFirst("X-Codigo-Erro"));
         assertEquals("Crie ou entre em uma equipe para acessar estes dados.", resposta.getBody());
     }
+
+    @Test
+    void recursoNaoEncontradoDevolveAMensagem() {
+        String corpo = handler.handleRecursoNaoEncontradoException(
+                new RecursoNaoEncontradoException("Notificação não encontrada"));
+
+        assertEquals("Notificação não encontrada", corpo);
+    }
 }
