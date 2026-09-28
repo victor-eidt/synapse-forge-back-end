@@ -336,4 +336,27 @@ class OrcamentoServiceTest {
 
         assertFalse(pagina.isTemMais());
     }
+
+    @Test
+    void buscarDeveResolverNomesDosMateriaisNumaConsultaSo() {
+        naEquipe("user-1", "eq-1");
+        Orcamento a = new Orcamento();
+        a.setId("o-1");
+        a.setEquipeId("eq-1");
+        a.setMaterialId("m-1");
+        Orcamento b = new Orcamento();
+        b.setId("o-2");
+        b.setEquipeId("eq-1");
+        b.setMaterialId("m-1");
+        when(mongoTemplate.count(any(Query.class), eq(Orcamento.class))).thenReturn(2L);
+        when(mongoTemplate.find(any(Query.class), eq(Orcamento.class))).thenReturn(List.of(a, b));
+        when(materialRepository.findByEquipeIdAndIdIn(eq("eq-1"), any())).thenReturn(List.of(materialPla()));
+
+        PaginaResponseDTO<OrcamentoResponseDTO> pagina =
+                service.buscar("user-1", filtro(SituacaoOrcamento.PENDENTES, null, null, null, null), 0, 20);
+
+        assertEquals(2, pagina.getItens().size());
+        verify(materialRepository, times(1)).findByEquipeIdAndIdIn(eq("eq-1"), any());
+        verify(materialRepository, never()).findByIdAndEquipeId(any(), any());
+    }
 }

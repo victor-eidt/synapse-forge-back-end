@@ -27,7 +27,11 @@ import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -178,9 +182,11 @@ public class OrcamentoService {
                 .skip((long) paginaValida * tamanhoValido)
                 .limit(tamanhoValido);
 
-        List<OrcamentoResponseDTO> itens = mongoTemplate.find(consulta, Orcamento.class)
-                .stream()
-                .map(orcamento -> toResponseDTO(orcamento, nomeMaterial(orcamento)))
+        List<Orcamento> orcamentos = mongoTemplate.find(consulta, Orcamento.class);
+        Map<String, String> nomesMateriais = nomesMateriais(equipe.get(), orcamentos);
+
+        List<OrcamentoResponseDTO> itens = orcamentos.stream()
+                .map(orcamento -> toResponseDTO(orcamento, nomesMateriais.get(orcamento.getMaterialId())))
                 .toList();
 
         boolean temMais = (long) (paginaValida + 1) * tamanhoValido < total;
@@ -318,6 +324,20 @@ public class OrcamentoService {
             throw new RuntimeException("Material inativo");
         }
         return material;
+    }
+
+    // Uma consulta para a página inteira, em vez de uma por orçamento
+    private Map<String, String> nomesMateriais(String equipeId, List<Orcamento> orcamentos) {
+        Set<String> ids = orcamentos.stream()
+                .map(Orcamento::getMaterialId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return materialRepository.findByEquipeIdAndIdIn(equipeId, ids).stream()
+                .filter(material -> material.getNome() != null)
+                .collect(Collectors.toMap(Material::getId, Material::getNome, (a, b) -> a));
     }
 
     private String nomeMaterial(Orcamento orcamento) {
