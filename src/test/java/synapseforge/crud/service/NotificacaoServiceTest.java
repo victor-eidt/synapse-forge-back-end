@@ -72,6 +72,7 @@ class NotificacaoServiceTest {
         u.setId("cli-1");
         u.setNome("Ana");
         u.setEmail(email);
+        u.setEmailConfirmado(true);
         return u;
     }
 
@@ -87,6 +88,18 @@ class NotificacaoServiceTest {
     @Test
     void clienteSemEmailNaoDeveEnviarMasMantemOAviso() {
         when(userRepository.findById("cli-1")).thenReturn(Optional.of(cliente(" ")));
+
+        service.notificarPedidoFinalizado(pedido("cli-1"));
+
+        verify(repository).save(any());
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void clienteComEmailNaoConfirmadoNaoDeveReceberEmail() {
+        User u = cliente("ana@x.com");
+        u.setEmailConfirmado(false);
+        when(userRepository.findById("cli-1")).thenReturn(Optional.of(u));
 
         service.notificarPedidoFinalizado(pedido("cli-1"));
 
