@@ -38,6 +38,9 @@ public class PedidoService {
     private EquipeContexto equipeContexto;
 
     @Autowired
+    private NotificacaoService notificacaoService;
+
+    @Autowired
     private org.springframework.data.mongodb.gridfs.GridFsTemplate gridFsTemplate;
 
 
@@ -413,7 +416,14 @@ public class PedidoService {
         // se o estoque for insuficiente a exceção sobe e o pedido não é salvo: a etapa não muda
         estoqueService.baixarPorEtapa(id, novoStatus, usuarioId);
         pedido.setAtualizadoEm(LocalDateTime.now());
-        return repository.save(pedido);
+        Pedido salvo = repository.save(pedido);
+
+        // Só depois de salvo: se a etapa não mudou, o cliente não é avisado
+        if (novoStatus == StatusPedido.FINALIZADO) {
+            notificacaoService.notificarPedidoFinalizado(salvo);
+        }
+
+        return salvo;
     }
 
 
