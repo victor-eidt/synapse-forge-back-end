@@ -33,6 +33,9 @@ class AdminServiceTest {
     @Mock
     private PedidoRepository pedidoRepository;
 
+    @Mock
+    private NotificacaoService notificacaoService;
+
     @InjectMocks
     private AdminService service;
 
@@ -159,6 +162,35 @@ class AdminServiceTest {
         assertEquals("Cliente A", result.getCliente());
         assertEquals(StatusPedido.IMPRESSAO.name(), result.getStatus());
         assertEquals(new BigDecimal("480"), result.getPrecoFinal());
+    }
+
+    @Test
+    void atualizarPedido_paraFinalizadoDeveNotificarCliente() {
+        Pedido pedido = pedido("p-1");
+        when(pedidoRepository.findById("p-1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AdminPedidoUpdateRequestDTO dto = new AdminPedidoUpdateRequestDTO();
+        dto.setStatus(StatusPedido.FINALIZADO);
+
+        service.atualizarPedido("p-1", dto);
+
+        verify(notificacaoService).notificarPedidoFinalizado(pedido);
+    }
+
+    @Test
+    void atualizarPedido_jaFinalizadoNaoDeveNotificarDeNovo() {
+        Pedido pedido = pedido("p-1");
+        pedido.setStatus(StatusPedido.FINALIZADO);
+        when(pedidoRepository.findById("p-1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AdminPedidoUpdateRequestDTO dto = new AdminPedidoUpdateRequestDTO();
+        dto.setProjeto("Outro nome");
+
+        service.atualizarPedido("p-1", dto);
+
+        verifyNoInteractions(notificacaoService);
     }
 
     @Test
