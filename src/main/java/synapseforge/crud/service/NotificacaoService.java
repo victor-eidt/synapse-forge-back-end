@@ -4,10 +4,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.Notificacao.NotificacaoResponseDTO;
+import synapseforge.crud.exception.RecursoNaoEncontradoException;
 import synapseforge.crud.infrastructure.entity.Notificacao;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.TipoNotificacao;
+import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.NotificacaoRepository;
+import synapseforge.crud.infrastructure.repository.UserRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,15 +21,18 @@ import java.util.List;
 public class NotificacaoService {
 
     private final NotificacaoRepository repository;
+    private final UserRepository userRepository;
+    private final EmailService emailService;
 
 
     // =========================================================
-    // PEDIDO FINALIZADO -> avisa o cliente vinculado
+    // PEDIDO FINALIZADO -> avisa o cliente vinculado (sino + email)
     // =========================================================
     //
     // Nunca derruba a mudança de etapa: se falhar, só registra no log.
     // Se o pedido regredir e for finalizado de novo enquanto o aviso
-    // anterior não foi lido, não duplica.
+    // anterior não foi lido, não duplica (nem o sino, nem o email).
+    // Sino e email são independentes: falha no SMTP não apaga o aviso.
     //
 
     public void notificarPedidoFinalizado(Pedido pedido) {
@@ -65,6 +71,53 @@ public class NotificacaoService {
                     e.getMessage()
             );
         }
+
+        enviarEmailPedidoFinalizado(pedido);
+    }
+
+    private void enviarEmailPedidoFinalizado(Pedido pedido) {
+
+        try {
+
+            User cliente = userRepository.findById(pedido.getClienteId())
+                    .orElse(null);
+
+            if (cliente == null
+                    || cliente.getEmail() == null
+                    || cliente.getEmail().isBlank()) {
+
+                log.warn(
+                        "Email de pedido finalizado não enviado: cliente {} não encontrado ou sem email.",
+                        pedido.getClienteId()
+                );
+                return;
+            }
+
+            // Email não confirmado pode ter sido digitado errado (ou ser de outra
+            // pessoa): não manda dados do pedido para um endereço não verificado
+            if (!cliente.isEmailConfirmado()) {
+
+                log.info(
+                        "Email de pedido finalizado não enviado: cliente {} sem email confirmado.",
+                        pedido.getClienteId()
+                );
+                return;
+            }
+            emailService.enviarPedidoFinalizado(
+                    cliente.getEmail(),
+                    cliente.getNome(),
+                    pedido.getProjeto(),
+                    pedido.getId()
+            );
+
+        } catch (RuntimeException e) {
+
+            log.warn(
+                    "Falha ao enviar email de pedido finalizado {}: {}",
+                    pedido.getId(),
+                    e.getMessage()
+            );
+        }
     }
 
 
@@ -74,8 +127,9 @@ public class NotificacaoService {
 
     public List<Notificacao> listar(String usuarioId, boolean apenasNaoLidas) {
 
+        // Limitado como a listagem completa: o sino consulta isto a cada minuto
         if (apenasNaoLidas) {
-            return repository.findByUsuarioIdAndLidaFalseOrderByCriadaEmDesc(usuarioId);
+            return repository.findTop50ByUsuarioIdAndLidaFalseOrderByCriadaEmDesc(usuarioId);
         }
 
         return repository.findTop50ByUsuarioIdOrderByCriadaEmDesc(usuarioId);
@@ -93,7 +147,7 @@ public class NotificacaoService {
 
         Notificacao notificacao = repository.findByIdAndUsuarioId(id, usuarioId)
                 .orElseThrow(() ->
-                        new RuntimeException("Notificação não encontrada")
+                        new RecursoNaoEncontradoException("Notificação não encontrada")
                 );
 
         if (!notificacao.isLida()) {

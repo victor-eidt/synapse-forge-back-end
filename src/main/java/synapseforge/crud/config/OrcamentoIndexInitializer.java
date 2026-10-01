@@ -8,7 +8,8 @@ import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.stereotype.Component;
 
 /**
- * Índices das consultas paginadas de orçamentos e do sino de notificações.
+ * Índices da consulta paginada de orçamentos (os do sino ficam em
+ * NotificacaoIndexInitializer).
  * Como em {@link EstoqueIndexInitializer}: auto-index-creation está desligado,
  * então os índices são garantidos aqui, na subida da aplicação.
  */
@@ -24,12 +25,6 @@ public class OrcamentoIndexInitializer implements CommandLineRunner {
         mongoTemplate.indexOps("orcamentos").ensureIndex(
                 new Index().on("equipeId", Sort.Direction.ASC)
                         .on("status", Sort.Direction.ASC)
-                        .on("criadoEm", Sort.Direction.DESC));
-
-        // sino: avisos não lidos do usuário, mais recentes primeiro
-        mongoTemplate.indexOps("notificacoes").ensureIndex(
-                new Index().on("usuarioId", Sort.Direction.ASC)
-                        .on("lida", Sort.Direction.ASC)
                         .on("criadoEm", Sort.Direction.DESC));
     }
 }
