@@ -10,7 +10,7 @@ import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.repository.ComentarioRepository;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 import synapseforge.crud.infrastructure.entity.User;
-import synapseforge.crud.infrastructure.repository.UserRepository;
+
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -76,6 +76,70 @@ public class ComentarioService {
                 usuarioId,
                 role
         );
+    }
+
+    public void deletar (
+            String pedidoId,
+            String comentarioId,
+            String usuarioId,
+            Role role
+    ) {
+        //Validação
+        validarPermissaoComentario(pedidoId, usuarioId, role);
+
+        //Conecta ao repository
+        Comentario comentario = comentarioRepository
+                .findById(comentarioId)
+                .orElseThrow(() ->
+                        new RuntimeException("Comentário não encontrado")
+                );
+        //Verifica Pedido
+        if (!pedidoId.equals(comentario.getPedidoId())) {
+            throw new RuntimeException("O comentário não pertence a este pedido.");
+        }
+        //Verifica se o comentário é do usuário ativo
+        if (!usuarioId.equals(comentario.getUsuarioId())) {
+            throw new RuntimeException("Você não pode excluir este comentário.");
+        }
+
+        //Realiza o delete após verificações
+        comentarioRepository.delete(comentario);
+
+
+    }
+
+    public ComentarioResponseDTO editar (
+            String pedidoId,
+            String comentarioId,
+            ComentarioRequestDTO dto,
+            String usuarioId,
+            Role role
+    ) {
+        //Validação
+        validarPermissaoComentario(pedidoId, usuarioId, role);
+
+        //Conecta
+        Comentario comentario = comentarioRepository
+                .findById(comentarioId)
+                .orElseThrow(() ->
+                        new RuntimeException("Comentário não encontrado.")
+                );
+        // Verifica Pedido
+        if (!pedidoId.equals(comentario.getPedidoId())) {
+            throw new RuntimeException(
+                    "O comentário não pertence a este pedido."
+            );
+        }
+        // Verifica se o comentário é do usuário ativo
+        if (!usuarioId.equals(comentario.getUsuarioId())) {
+            throw new RuntimeException(
+                    "Você não pode editar este comentário."
+            );
+        }
+
+        comentario.setConteudo(dto.getConteudo());
+
+        return toResponseDTO(comentarioRepository.save(comentario));
     }
 
     private ComentarioResponseDTO toResponseDTO(
