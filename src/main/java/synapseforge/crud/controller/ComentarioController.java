@@ -55,6 +55,46 @@ public class ComentarioController {
         );
     }
 
+    @DeleteMapping("/{comentarioId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasAnyRole('TECNICO','GERENTE')")
+    public void deletar(
+            @PathVariable String pedidoId,
+            @PathVariable String comentarioId,
+            Authentication auth
+    ) {
+        String usuarioId = (String) auth.getPrincipal();
+
+        Role role = getRole(auth);
+
+        comentarioService.deletar(
+                pedidoId,
+                comentarioId,
+                usuarioId,
+                role
+        );
+    }
+
+    @PutMapping("/{comentarioId}")
+    public ComentarioResponseDTO editar (
+        @PathVariable String pedidoId,
+        @PathVariable String comentarioId,
+        @Valid @RequestBody ComentarioRequestDTO dto,
+        Authentication auth
+    ) {
+        String usuarioId = (String) auth.getPrincipal();
+        Role role = getRole(auth);
+
+        return comentarioService.editar(
+                pedidoId,
+                comentarioId,
+                dto,
+                usuarioId,
+                role
+        );
+
+    }
+
     private Role getRole(Authentication auth) {
         String authority = auth.getAuthorities()
                 .iterator()
