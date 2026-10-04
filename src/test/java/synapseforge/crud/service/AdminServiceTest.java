@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mapstruct.factory.Mappers;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import synapseforge.crud.DTO.Admin.AdminPedidoUpdateRequestDTO;
@@ -23,6 +25,7 @@ import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import synapseforge.crud.infrastructure.repository.UserRepository;
+import synapseforge.crud.mapper.PedidoAdminMapper;
 
 @ExtendWith(MockitoExtension.class)
 class AdminServiceTest {
@@ -35,6 +38,10 @@ class AdminServiceTest {
 
     @Mock
     private NotificacaoService notificacaoService;
+
+    // Mapper de verdade (gerado pelo MapStruct), não mock: o teste confere a cópia dos campos
+    @Spy
+    private PedidoAdminMapper pedidoAdminMapper = Mappers.getMapper(PedidoAdminMapper.class);
 
     @InjectMocks
     private AdminService service;
@@ -175,7 +182,21 @@ class AdminServiceTest {
 
         service.atualizarPedido("p-1", dto);
 
-        verify(notificacaoService).notificarPedidoFinalizado(pedido);
+        verify(notificacaoService).notificarEtapaAlterada(pedido);
+    }
+
+    @Test
+    void atualizarPedido_trocandoEtapaDeveAvisarOCliente() {
+        Pedido pedido = pedido("p-1");
+        when(pedidoRepository.findById("p-1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        AdminPedidoUpdateRequestDTO dto = new AdminPedidoUpdateRequestDTO();
+        dto.setStatus(StatusPedido.PINTURA);
+
+        service.atualizarPedido("p-1", dto);
+
+        verify(notificacaoService).notificarEtapaAlterada(pedido);
     }
 
     @Test
@@ -224,5 +245,23 @@ class AdminServiceTest {
         pedido.setCriadoEm(java.time.LocalDateTime.now());
         pedido.setAtualizadoEm(java.time.LocalDateTime.now());
         return pedido;
+    }
+
+    @Test
+    void atualizarPedido_campoNuloNaoDeveSobrescreverValorAtual() {
+        Pedido pedido = pedido("p-1");
+        when(pedidoRepository.findById("p-1")).thenReturn(Optional.of(pedido));
+        when(pedidoRepository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // só o projeto foi enviado: o resto do DTO está null
+        AdminPedidoUpdateRequestDTO dto = new AdminPedidoUpdateRequestDTO();
+        dto.setProjeto("Projeto novo");
+
+        var result = service.atualizarPedido("p-1", dto);
+
+        assertEquals("Projeto novo", result.getProjeto());
+        assertEquals("Cliente A", result.getCliente());
+        assertEquals("cli-1", result.getClienteId());
+        assertEquals(StatusPedido.MODELAGEM.name(), result.getStatus());
     }
 }
