@@ -33,6 +33,7 @@ public class OrdemPinturaService {
     private final PedidoService pedidoService;
     private final EquipeContexto equipeContexto;
     private final UserRepository userRepository;
+    private final NotificacaoService notificacaoService;
 
     public List<OrdemPinturaResponseDTO> listar(String usuarioId) {
         return equipeContexto.equipeDe(usuarioId)
@@ -76,7 +77,11 @@ public class OrdemPinturaService {
         ordem.setEtapa(EtapaOrdemPintura.AGUARDANDO);
         ordem.setCriadoEm(LocalDateTime.now());
         ordem.setAtualizadoEm(LocalDateTime.now());
-        return toResponseDTO(repository.save(ordem));
+
+        OrdemPinturaResponseDTO criada = toResponseDTO(repository.save(ordem));
+        // só depois de salva: se a gravação falhar, o técnico não é avisado de algo que não existe
+        avisarTecnico(criada, usuarioId);
+        return criada;
     }
 
     public OrdemPinturaResponseDTO atualizarEtapa(
@@ -101,7 +106,8 @@ public class OrdemPinturaService {
 
         // Manter o técnico que já estava na ordem é sempre permitido (mesmo que ele tenha
         // saído da equipe depois): só uma troca de técnico passa pela validação.
-        if (!dto.getTecnicoId().equals(ordem.getTecnicoId())) {
+        boolean trocouTecnico = !dto.getTecnicoId().equals(ordem.getTecnicoId());
+        if (trocouTecnico) {
             User tecnico = buscarTecnicoDaEquipe(dto.getTecnicoId(), equipeId);
             ordem.setTecnicoId(tecnico.getId());
             ordem.setTecnico(tecnico.getNome());
@@ -112,7 +118,25 @@ public class OrdemPinturaService {
         ordem.setPrioridade(dto.getPrioridade());
         ordem.setPrazo(dto.getPrazo());
         ordem.setAtualizadoEm(LocalDateTime.now());
-        return toResponseDTO(repository.save(ordem));
+
+        OrdemPinturaResponseDTO atualizada = toResponseDTO(repository.save(ordem));
+        // o novo responsável é avisado; editar outros campos não gera aviso
+        if (trocouTecnico) {
+            avisarTecnico(atualizada, usuarioId);
+        }
+        return atualizada;
+    }
+
+    // Usa o DTO já montado: projeto e cor saem dele, sem consultar o banco de novo
+    private void avisarTecnico(OrdemPinturaResponseDTO ordem, String atribuidaPor) {
+        notificacaoService.notificarOrdemPinturaAtribuida(
+                ordem.getId(),
+                ordem.getTecnicoId(),
+                atribuidaPor,
+                ordem.getPedidoProjeto(),
+                ordem.getCorNome(),
+                ordem.getPrazo()
+        );
     }
 
     public void deletar(String id, String usuarioId) {
