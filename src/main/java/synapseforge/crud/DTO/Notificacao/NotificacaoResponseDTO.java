@@ -14,6 +14,7 @@ public class NotificacaoResponseDTO {
     private TipoNotificacao tipo;
     private String referenciaId;
     private String titulo;
+    private String detalhe;
     private boolean lida;
     private LocalDateTime criadaEm;
 }
