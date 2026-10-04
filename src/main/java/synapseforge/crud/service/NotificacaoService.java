@@ -12,6 +12,7 @@ import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.NotificacaoRepository;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -115,6 +116,104 @@ public class NotificacaoService {
             log.warn(
                     "Falha ao enviar email de pedido finalizado {}: {}",
                     pedido.getId(),
+                    e.getMessage()
+            );
+        }
+    }
+
+
+    // =========================================================
+    // ORDEM DE PINTURA ATRIBUÍDA -> avisa o técnico (sino + email)
+    // =========================================================
+    //
+    // Chamado ao criar a ordem e ao trocar o técnico dela. Quem atribui a ordem a si
+    // mesmo não recebe aviso (já sabe). Como no pedido finalizado: falha aqui nunca
+    // desfaz a ordem, só vai para o log, e sino e email são independentes.
+    //
+
+    public void notificarOrdemPinturaAtribuida(
+            String ordemId,
+            String tecnicoId,
+            String atribuidaPor,
+            String projeto,
+            String corNome,
+            LocalDate prazo
+    ) {
+
+        if (tecnicoId == null || tecnicoId.isBlank() || tecnicoId.equals(atribuidaPor)) {
+            return;
+        }
+
+        try {
+
+            Notificacao notificacao = new Notificacao();
+            notificacao.setUsuarioId(tecnicoId);
+            notificacao.setTipo(TipoNotificacao.ORDEM_PINTURA_ATRIBUIDA);
+            notificacao.setReferenciaId(ordemId);
+            notificacao.setTitulo(projeto);
+            notificacao.setLida(false);
+            notificacao.setCriadaEm(LocalDateTime.now());
+
+            repository.save(notificacao);
+
+        } catch (RuntimeException e) {
+
+            log.warn(
+                    "Não foi possível registrar a notificação da ordem de pintura {}: {}",
+                    ordemId,
+                    e.getMessage()
+            );
+        }
+
+        enviarEmailOrdemPinturaAtribuida(ordemId, tecnicoId, projeto, corNome, prazo);
+    }
+
+    private void enviarEmailOrdemPinturaAtribuida(
+            String ordemId,
+            String tecnicoId,
+            String projeto,
+            String corNome,
+            LocalDate prazo
+    ) {
+
+        try {
+
+            User tecnico = userRepository.findById(tecnicoId).orElse(null);
+
+            if (tecnico == null
+                    || tecnico.getEmail() == null
+                    || tecnico.getEmail().isBlank()) {
+
+                log.warn(
+                        "Email da ordem de pintura não enviado: técnico {} não encontrado ou sem email.",
+                        tecnicoId
+                );
+                return;
+            }
+
+            // mesma regra do pedido finalizado: só manda para email verificado
+            if (!tecnico.isEmailConfirmado()) {
+
+                log.info(
+                        "Email da ordem de pintura não enviado: técnico {} sem email confirmado.",
+                        tecnicoId
+                );
+                return;
+            }
+
+            emailService.enviarOrdemPinturaAtribuida(
+                    tecnico.getEmail(),
+                    tecnico.getNome(),
+                    projeto,
+                    corNome,
+                    prazo
+            );
+
+        } catch (RuntimeException e) {
+
+            log.warn(
+                    "Falha ao enviar email da ordem de pintura {}: {}",
+                    ordemId,
                     e.getMessage()
             );
         }

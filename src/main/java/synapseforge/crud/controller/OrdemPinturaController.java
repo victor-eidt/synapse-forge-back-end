@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import synapseforge.crud.DTO.OrdemPintura.AtualizarEtapaOrdemPinturaDTO;
 import synapseforge.crud.DTO.OrdemPintura.OrdemPinturaRequestDTO;
 import synapseforge.crud.DTO.OrdemPintura.OrdemPinturaResponseDTO;
+import synapseforge.crud.DTO.OrdemPintura.TecnicoResumoDTO;
 import synapseforge.crud.service.OrdemPinturaService;
 
 import java.util.List;
@@ -29,6 +30,12 @@ public class OrdemPinturaController {
     @GetMapping
     public List<OrdemPinturaResponseDTO> listar(Authentication auth) {
         return service.listar((String) auth.getPrincipal());
+    }
+
+    // Opções do select de técnico: técnicos ativos e o gerente da equipe de quem pede
+    @GetMapping("/tecnicos")
+    public List<TecnicoResumoDTO> listarTecnicos(Authentication auth) {
+        return service.listarTecnicos((String) auth.getPrincipal());
     }
 
     @PostMapping

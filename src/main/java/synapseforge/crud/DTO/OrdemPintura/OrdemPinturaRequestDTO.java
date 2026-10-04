@@ -18,8 +18,9 @@ public class OrdemPinturaRequestDTO {
     @NotBlank
     private String corId;
 
+    // id do usuário técnico (não mais o nome digitado): o service valida que é da equipe
     @NotBlank
-    private String tecnico;
+    private String tecnicoId;
 
     @NotNull
     private PrioridadeOrdemPintura prioridade;
