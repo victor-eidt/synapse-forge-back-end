@@ -18,6 +18,7 @@ import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.NotificacaoRepository;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -179,5 +180,62 @@ class NotificacaoServiceTest {
 
         assertEquals(List.of(a), service.listar("cli-1", true));
         verify(repository, never()).findByUsuarioIdAndLidaFalseOrderByCriadaEmDesc(any());
+    }
+
+    // =========================================================
+    // ORDEM DE PINTURA ATRIBUÍDA
+    // =========================================================
+
+    private User tecnico(boolean emailConfirmado) {
+        User u = new User();
+        u.setId("tec-1");
+        u.setNome("José");
+        u.setEmail("jose@x.com");
+        u.setEmailConfirmado(emailConfirmado);
+        return u;
+    }
+
+    @Test
+    void ordemAtribuidaDeveAvisarOTecnicoNoSinoENoEmail() {
+        LocalDate prazo = LocalDate.of(2026, 10, 15);
+        when(userRepository.findById("tec-1")).thenReturn(Optional.of(tecnico(true)));
+
+        service.notificarOrdemPinturaAtribuida("ord-1", "tec-1", "gerente-1", "Vaso", "Azul", prazo);
+
+        ArgumentCaptor<Notificacao> captor = ArgumentCaptor.forClass(Notificacao.class);
+        verify(repository).save(captor.capture());
+        Notificacao salva = captor.getValue();
+        assertEquals("tec-1", salva.getUsuarioId());
+        assertEquals(TipoNotificacao.ORDEM_PINTURA_ATRIBUIDA, salva.getTipo());
+        assertEquals("ord-1", salva.getReferenciaId());
+        assertEquals("Vaso", salva.getTitulo());
+        assertFalse(salva.isLida());
+
+        verify(emailService).enviarOrdemPinturaAtribuida("jose@x.com", "José", "Vaso", "Azul", prazo);
+    }
+
+    @Test
+    void quemAtribuiAOrdemASiMesmoNaoRecebeAviso() {
+        service.notificarOrdemPinturaAtribuida("ord-1", "tec-1", "tec-1", "Vaso", "Azul", LocalDate.now());
+
+        verifyNoInteractions(repository, emailService, userRepository);
+    }
+
+    @Test
+    void tecnicoSemEmailConfirmadoRecebeSoNoSino() {
+        when(userRepository.findById("tec-1")).thenReturn(Optional.of(tecnico(false)));
+
+        service.notificarOrdemPinturaAtribuida("ord-1", "tec-1", "gerente-1", "Vaso", "Azul", LocalDate.now());
+
+        verify(repository).save(any());
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void falhaAoSalvarAvisoDaOrdemNaoDevePropagar() {
+        when(repository.save(any())).thenThrow(new RuntimeException("mongo fora"));
+
+        assertDoesNotThrow(() -> service.notificarOrdemPinturaAtribuida(
+                "ord-1", "tec-1", "gerente-1", "Vaso", "Azul", LocalDate.now()));
     }
 }

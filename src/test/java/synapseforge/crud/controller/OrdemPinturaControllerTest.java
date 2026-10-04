@@ -33,7 +33,7 @@ class OrdemPinturaControllerTest {
         Authentication auth = mock(Authentication.class);
         when(auth.getPrincipal()).thenReturn("user-1");
 
-        OrdemPinturaResponseDTO response = new OrdemPinturaResponseDTO("ord-1", "p-1", "Projeto", "Cliente", "c-1", "Azul", "#0000FF", null, "José", PrioridadeOrdemPintura.ALTA, LocalDate.now(), EtapaOrdemPintura.AGUARDANDO, List.of(), null, null);
+        OrdemPinturaResponseDTO response = new OrdemPinturaResponseDTO("ord-1", "p-1", "Projeto", "Cliente", "c-1", "Azul", "#0000FF", null, "tec-1", "José", PrioridadeOrdemPintura.ALTA, LocalDate.now(), EtapaOrdemPintura.AGUARDANDO, List.of(), null, null);
         when(service.listar("user-1")).thenReturn(List.of(response));
 
         assertEquals(1, controller.listar(auth).size());
@@ -47,11 +47,11 @@ class OrdemPinturaControllerTest {
         OrdemPinturaRequestDTO dto = new OrdemPinturaRequestDTO();
         dto.setPedidoId("p-1");
         dto.setCorId("c-1");
-        dto.setTecnico("José");
+        dto.setTecnicoId("tec-1");
         dto.setPrioridade(PrioridadeOrdemPintura.ALTA);
         dto.setPrazo(LocalDate.now());
 
-        OrdemPinturaResponseDTO response = new OrdemPinturaResponseDTO("ord-1", "p-1", "Projeto", "Cliente", "c-1", "Azul", "#0000FF", null, "José", PrioridadeOrdemPintura.ALTA, LocalDate.now(), EtapaOrdemPintura.AGUARDANDO, List.of(), null, null);
+        OrdemPinturaResponseDTO response = new OrdemPinturaResponseDTO("ord-1", "p-1", "Projeto", "Cliente", "c-1", "Azul", "#0000FF", null, "tec-1", "José", PrioridadeOrdemPintura.ALTA, LocalDate.now(), EtapaOrdemPintura.AGUARDANDO, List.of(), null, null);
         when(service.criar(dto, "user-1")).thenReturn(response);
 
         assertEquals("José", controller.criar(dto, auth).getTecnicoNome());
@@ -65,7 +65,7 @@ class OrdemPinturaControllerTest {
         AtualizarEtapaOrdemPinturaDTO dto = new AtualizarEtapaOrdemPinturaDTO();
         dto.setEtapa(EtapaOrdemPintura.EM_PINTURA);
 
-        OrdemPinturaResponseDTO response = new OrdemPinturaResponseDTO("ord-1", "p-1", "Projeto", "Cliente", "c-1", "Azul", "#0000FF", null, "José", PrioridadeOrdemPintura.ALTA, LocalDate.now(), EtapaOrdemPintura.EM_PINTURA, List.of(), null, null);
+        OrdemPinturaResponseDTO response = new OrdemPinturaResponseDTO("ord-1", "p-1", "Projeto", "Cliente", "c-1", "Azul", "#0000FF", null, "tec-1", "José", PrioridadeOrdemPintura.ALTA, LocalDate.now(), EtapaOrdemPintura.EM_PINTURA, List.of(), null, null);
         when(service.atualizarEtapa("ord-1", EtapaOrdemPintura.EM_PINTURA, "user-1")).thenReturn(response);
 
         assertEquals(EtapaOrdemPintura.EM_PINTURA, controller.atualizarEtapa("ord-1", dto, auth).getEtapa());
@@ -79,11 +79,11 @@ class OrdemPinturaControllerTest {
         OrdemPinturaRequestDTO dto = new OrdemPinturaRequestDTO();
         dto.setPedidoId("p-1");
         dto.setCorId("c-1");
-        dto.setTecnico("José");
+        dto.setTecnicoId("tec-1");
         dto.setPrioridade(PrioridadeOrdemPintura.MEDIA);
         dto.setPrazo(LocalDate.now());
 
-        OrdemPinturaResponseDTO response = new OrdemPinturaResponseDTO("ord-1", "p-1", "Projeto", "Cliente", "c-1", "Azul", "#0000FF", null, "José", PrioridadeOrdemPintura.MEDIA, LocalDate.now(), EtapaOrdemPintura.AGUARDANDO, List.of(), null, null);
+        OrdemPinturaResponseDTO response = new OrdemPinturaResponseDTO("ord-1", "p-1", "Projeto", "Cliente", "c-1", "Azul", "#0000FF", null, "tec-1", "José", PrioridadeOrdemPintura.MEDIA, LocalDate.now(), EtapaOrdemPintura.AGUARDANDO, List.of(), null, null);
         when(service.atualizar("ord-1", dto, "user-1")).thenReturn(response);
 
         assertEquals(PrioridadeOrdemPintura.MEDIA, controller.atualizar("ord-1", dto, auth).getPrioridade());

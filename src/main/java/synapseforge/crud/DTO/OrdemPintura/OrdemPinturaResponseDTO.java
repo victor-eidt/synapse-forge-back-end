@@ -20,6 +20,7 @@ public class OrdemPinturaResponseDTO {
     private String corNome;
     private String corHex;
     private String acabamento;
+    private String tecnicoId;
     private String tecnicoNome;
     private PrioridadeOrdemPintura prioridade;
     private LocalDate prazo;

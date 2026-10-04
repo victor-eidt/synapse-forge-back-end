@@ -63,6 +63,31 @@ class EmailServiceTest {
         assertFalse(corpo.contains("<b>Drag"));
     }
 
+    @Test
+    void enviarOrdemPinturaAtribuida_deveTrazerProjetoCorPrazoELinkDoQuadro() throws Exception {
+        MimeMessage msg = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(msg);
+
+        service = new EmailService(mailSender);
+        java.lang.reflect.Field f1 = EmailService.class.getDeclaredField("appUrl");
+        f1.setAccessible(true); f1.set(service, "http://app.local");
+        java.lang.reflect.Field f2 = EmailService.class.getDeclaredField("mailFrom");
+        f2.setAccessible(true); f2.set(service, "no-reply@sf.com");
+
+        service.enviarOrdemPinturaAtribuida("tec@d.com", "José", "<i>Vaso</i>", "Azul Royal",
+                java.time.LocalDate.of(2026, 10, 15));
+
+        verify(mailSender).send(msg);
+        assertEquals("Nova ordem de pintura – SynapseForge", msg.getSubject());
+
+        String corpo = textoHtml(msg.getContent());
+        assertTrue(corpo.contains("http://app.local/ordens-pintura"));
+        assertTrue(corpo.contains("Azul Royal"));
+        assertTrue(corpo.contains("15/10/2026"));
+        assertTrue(corpo.contains("&lt;i&gt;Vaso"));
+        assertFalse(corpo.contains("<i>Vaso"));
+    }
+
     // O helper monta multipart (mixed > related > html): desce até achar o texto
     private static String textoHtml(Object conteudo) throws Exception {
         if (conteudo instanceof String texto) {
