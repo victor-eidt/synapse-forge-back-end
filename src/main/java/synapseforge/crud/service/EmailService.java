@@ -533,7 +533,7 @@ public class EmailService {
                         + " Clique no botão abaixo para abrir o quadro de ordens.",
                 link,
                 "Ver ordens de pintura",
-                "Você recebeu este email porque é técnico da equipe "
+                "Você recebeu este email porque faz parte de uma equipe "
                         + "no SynapseForge."
         );
 
