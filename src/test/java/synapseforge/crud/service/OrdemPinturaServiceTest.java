@@ -51,6 +51,9 @@ class OrdemPinturaServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private NotificacaoService notificacaoService;
+
     @InjectMocks
     private OrdemPinturaService service;
 
@@ -178,6 +181,9 @@ class OrdemPinturaServiceTest {
                 && "user-1".equals(o.getUsuarioId())
                 && "tec-1".equals(o.getTecnicoId())
                 && "José".equals(o.getTecnico())));
+        // o técnico escolhido é avisado, com quem criou como remetente
+        verify(notificacaoService).notificarOrdemPinturaAtribuida(
+                eq("ord-1"), eq("tec-1"), eq("user-1"), any(), any(), any());
     }
 
     @Test
@@ -257,6 +263,9 @@ class OrdemPinturaServiceTest {
         assertEquals("tec-2", result.getTecnicoId());
         assertEquals("Maria", result.getTecnicoNome());
         assertEquals(PrioridadeOrdemPintura.MEDIA, result.getPrioridade());
+        // trocou de José para Maria: Maria é avisada
+        verify(notificacaoService).notificarOrdemPinturaAtribuida(
+                eq("ord-1"), eq("tec-2"), eq("user-1"), any(), eq("Azul"), any());
     }
 
     @Test
@@ -305,6 +314,8 @@ class OrdemPinturaServiceTest {
 
         assertEquals("tec-saiu", result.getTecnicoId());
         assertEquals("Ex-integrante", result.getTecnicoNome());
+        // mesmo técnico: editar outros campos não gera aviso
+        verifyNoInteractions(notificacaoService);
     }
 
     @Test
