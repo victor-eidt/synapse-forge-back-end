@@ -27,6 +27,9 @@ public class OrdemPintura {
     private String usuarioId;
     private String pedidoId;
     private String corId;
+    // Responsável: técnico ativo ou o gerente da mesma equipe (validado no service).
+    private String tecnicoId;
+    // Nome do técnico no momento da gravação; ordens antigas só têm este campo.
     private String tecnico;
     private PrioridadeOrdemPintura prioridade;
     private LocalDate prazo;
