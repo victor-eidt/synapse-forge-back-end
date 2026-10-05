@@ -442,61 +442,6 @@ public class EmailService {
 
 
     // =========================================================
-    // NOTIFICAÇÃO AO TÉCNICO — ORDEM DE PINTURA ATRIBUÍDA
-    // =========================================================
-
-    // Assíncrono pelo mesmo motivo do aviso de etapa do pedido: quem cria a ordem não
-    // espera o SMTP. Falha aqui só vai para o log (AsyncUncaughtExceptionHandler).
-    @Async
-    public void enviarOrdemPinturaAtribuida(
-            String destinatario,
-            String nomeTecnico,
-            String projeto,
-            String corNome,
-            LocalDate prazo
-    ) {
-
-        // O quadro de ordens é onde o técnico vê e move a ordem
-        String link = appUrl + "/ordens-pintura";
-
-        String nome = nomeTecnico == null || nomeTecnico.isBlank()
-                ? ""
-                : ", " + HtmlUtils.htmlEscape(nomeTecnico);
-
-        String detalheCor = corNome == null || corNome.isBlank()
-                ? ""
-                : " na cor <strong>" + HtmlUtils.htmlEscape(corNome) + "</strong>";
-
-        String detalhePrazo = prazo == null
-                ? ""
-                : " O prazo é <strong>"
-                        + prazo.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                        + "</strong>.";
-
-        String html = buildHtml(
-                "Nova ordem de pintura",
-                "Olá" + nome + "!",
-                "Você recebeu uma nova ordem de pintura para o projeto <strong>"
-                        + HtmlUtils.htmlEscape(projeto == null ? "" : projeto)
-                        + "</strong>"
-                        + detalheCor
-                        + "."
-                        + detalhePrazo
-                        + " Clique no botão abaixo para abrir o quadro de ordens.",
-                link,
-                "Ver ordens de pintura",
-                "Você recebeu este email porque é técnico da equipe "
-                        + "no SynapseForge."
-        );
-
-        enviar(
-                destinatario,
-                "Nova ordem de pintura – SynapseForge",
-                html
-        );
-    }
-
-    // =========================================================
     // NOTIFICAÇÃO AO CLIENTE — PEDIDO MUDOU DE ETAPA
     // =========================================================
 
@@ -568,6 +513,61 @@ public class EmailService {
             case FINALIZADO -> "Finalizado";
             case CANCELADO -> "Cancelado";
         };
+    }
+
+    // =========================================================
+    // NOTIFICAÇÃO AO TÉCNICO — ORDEM DE PINTURA ATRIBUÍDA
+    // =========================================================
+
+    // Assíncrono pelo mesmo motivo do aviso de etapa do pedido: quem cria a ordem não
+    // espera o SMTP. Falha aqui só vai para o log (AsyncUncaughtExceptionHandler).
+    @Async
+    public void enviarOrdemPinturaAtribuida(
+            String destinatario,
+            String nomeTecnico,
+            String projeto,
+            String corNome,
+            LocalDate prazo
+    ) {
+
+        // O quadro de ordens é onde o técnico vê e move a ordem
+        String link = appUrl + "/ordens-pintura";
+
+        String nome = nomeTecnico == null || nomeTecnico.isBlank()
+                ? ""
+                : ", " + HtmlUtils.htmlEscape(nomeTecnico);
+
+        String detalheCor = corNome == null || corNome.isBlank()
+                ? ""
+                : " na cor <strong>" + HtmlUtils.htmlEscape(corNome) + "</strong>";
+
+        String detalhePrazo = prazo == null
+                ? ""
+                : " O prazo é <strong>"
+                        + prazo.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        + "</strong>.";
+
+        String html = buildHtml(
+                "Nova ordem de pintura",
+                "Olá" + nome + "!",
+                "Você recebeu uma nova ordem de pintura para o projeto <strong>"
+                        + HtmlUtils.htmlEscape(projeto == null ? "" : projeto)
+                        + "</strong>"
+                        + detalheCor
+                        + "."
+                        + detalhePrazo
+                        + " Clique no botão abaixo para abrir o quadro de ordens.",
+                link,
+                "Ver ordens de pintura",
+                "Você recebeu este email porque faz parte de uma equipe "
+                        + "no SynapseForge."
+        );
+
+        enviar(
+                destinatario,
+                "Nova ordem de pintura – SynapseForge",
+                html
+        );
     }
 
     // Mesmo código curto exibido no front (#26D73): últimos 5 caracteres do id
