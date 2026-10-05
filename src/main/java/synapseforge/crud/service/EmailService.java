@@ -8,6 +8,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
+import synapseforge.crud.infrastructure.entity.StatusPedido;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -441,20 +442,20 @@ public class EmailService {
 
 
     // =========================================================
-    // NOTIFICAÇÃO AO CLIENTE — PEDIDO FINALIZADO
+    // NOTIFICAÇÃO AO CLIENTE — PEDIDO MUDOU DE ETAPA
     // =========================================================
 
-    // Assíncrono: chamado ao finalizar o pedido, não pode segurar a requisição
-    // esperando o SMTP. Falha aqui só vai para o log (AsyncUncaughtExceptionHandler).
+    // Um email para qualquer etapa, inclusive FINALIZADO (que muda só o texto).
+    // Assíncrono: mudar a etapa não espera o SMTP; falha vai para o log.
     @Async
-    public void enviarPedidoFinalizado(
+    public void enviarPedidoEtapaAlterada(
             String destinatario,
             String nomeCliente,
             String projeto,
-            String pedidoId
+            String pedidoId,
+            StatusPedido etapa
     ) {
 
-        // O link abre o detalhe do pedido no dashboard (o front lê ?pedido=<id>)
         String link =
                 appUrl + "/dashboard?pedido="
                         + URLEncoder.encode(
@@ -462,38 +463,63 @@ public class EmailService {
                         StandardCharsets.UTF_8
                 );
 
-        // Nome do projeto e do cliente vêm de texto livre: escapados antes de entrar no HTML
         String nome = nomeCliente == null || nomeCliente.isBlank()
                 ? ""
                 : ", " + HtmlUtils.htmlEscape(nomeCliente);
 
+        String nomeEtapa = nomeDaEtapa(etapa);
+        String pedidoDestacado = "Seu pedido <strong>"
+                + HtmlUtils.htmlEscape(projeto == null ? "" : projeto)
+                + "</strong> ("
+                + referenciaPedido(pedidoId)
+                + ")";
+
+        // Finalizado é só mais uma etapa, mas a mensagem ao cliente é "está pronto"
+        boolean finalizado = etapa == StatusPedido.FINALIZADO;
+
+        String titulo = finalizado ? "Pedido finalizado" : "Atualização do seu pedido";
+        String assunto = finalizado
+                ? "Seu pedido foi finalizado – SynapseForge"
+                : "Seu pedido está em " + nomeEtapa + " – SynapseForge";
+        String corpo = finalizado
+                ? pedidoDestacado + " foi finalizado e está pronto. "
+                        + "Clique no botão abaixo para ver os detalhes."
+                : pedidoDestacado + " agora está na etapa <strong>" + nomeEtapa + "</strong>. "
+                        + "Clique no botão abaixo para acompanhar.";
+
         String html = buildHtml(
-                "Pedido finalizado",
+                titulo,
                 "Olá" + nome + "!",
-                "Seu pedido <strong>"
-                        + HtmlUtils.htmlEscape(projeto == null ? "" : projeto)
-                        + "</strong> ("
-                        + referenciaPedido(pedidoId)
-                        + ") foi finalizado e está pronto. "
-                        + "Clique no botão abaixo para ver os detalhes.",
+                corpo,
                 link,
                 "Ver pedido",
                 "Você recebeu este email porque tem um pedido "
                         + "vinculado à sua conta SynapseForge."
         );
 
-        enviar(
-                destinatario,
-                "Seu pedido foi finalizado – SynapseForge",
-                html
-        );
+        enviar(destinatario, assunto, html);
+    }
+
+    // Nome da etapa para o cliente (o enum é o código interno)
+    private String nomeDaEtapa(StatusPedido etapa) {
+        if (etapa == null) {
+            return "";
+        }
+        return switch (etapa) {
+            case MODELAGEM -> "Modelagem";
+            case IMPRESSAO -> "Impressão";
+            case PINTURA -> "Pintura";
+            case ACABAMENTO -> "Acabamento";
+            case FINALIZADO -> "Finalizado";
+            case CANCELADO -> "Cancelado";
+        };
     }
 
     // =========================================================
     // NOTIFICAÇÃO AO TÉCNICO — ORDEM DE PINTURA ATRIBUÍDA
     // =========================================================
 
-    // Assíncrono pelo mesmo motivo do pedido finalizado: quem cria a ordem não
+    // Assíncrono pelo mesmo motivo do aviso de etapa do pedido: quem cria a ordem não
     // espera o SMTP. Falha aqui só vai para o log (AsyncUncaughtExceptionHandler).
     @Async
     public void enviarOrdemPinturaAtribuida(

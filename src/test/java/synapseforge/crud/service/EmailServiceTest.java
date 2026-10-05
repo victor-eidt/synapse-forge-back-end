@@ -41,7 +41,7 @@ class EmailServiceTest {
         verify(mailSender).send(any(MimeMessage.class));
     }
     @Test
-    void enviarPedidoFinalizado_deveEscaparProjetoEApontarParaOPedido() throws Exception {
+    void enviarPedidoEtapaAlterada_finalizadoDeveEscaparProjetoEUsarTextoDePronto() throws Exception {
         MimeMessage msg = new MimeMessage(Session.getDefaultInstance(new Properties()));
         when(mailSender.createMimeMessage()).thenReturn(msg);
 
@@ -51,7 +51,8 @@ class EmailServiceTest {
         java.lang.reflect.Field f2 = EmailService.class.getDeclaredField("mailFrom");
         f2.setAccessible(true); f2.set(service, "no-reply@sf.com");
 
-        service.enviarPedidoFinalizado("cli@d.com", "Ana", "<b>Dragão</b>", "abc123def45");
+        service.enviarPedidoEtapaAlterada("cli@d.com", "Ana", "<b>Dragão</b>", "abc123def45",
+                synapseforge.crud.infrastructure.entity.StatusPedido.FINALIZADO);
 
         verify(mailSender).send(msg);
         assertEquals("Seu pedido foi finalizado – SynapseForge", msg.getSubject());
@@ -61,6 +62,7 @@ class EmailServiceTest {
         assertTrue(corpo.contains("#DEF45"));
         assertTrue(corpo.contains("&lt;b&gt;Drag"));
         assertFalse(corpo.contains("<b>Drag"));
+        assertTrue(corpo.contains("foi finalizado e está pronto"));
     }
 
     @Test
@@ -86,6 +88,29 @@ class EmailServiceTest {
         assertTrue(corpo.contains("15/10/2026"));
         assertTrue(corpo.contains("&lt;i&gt;Vaso"));
         assertFalse(corpo.contains("<i>Vaso"));
+    }
+
+    @Test
+    void enviarPedidoEtapaAlterada_deveTrazerNomeDaEtapaEOLinkDoPedido() throws Exception {
+        MimeMessage msg = new MimeMessage(Session.getDefaultInstance(new Properties()));
+        when(mailSender.createMimeMessage()).thenReturn(msg);
+
+        service = new EmailService(mailSender);
+        java.lang.reflect.Field f1 = EmailService.class.getDeclaredField("appUrl");
+        f1.setAccessible(true); f1.set(service, "http://app.local");
+        java.lang.reflect.Field f2 = EmailService.class.getDeclaredField("mailFrom");
+        f2.setAccessible(true); f2.set(service, "no-reply@sf.com");
+
+        service.enviarPedidoEtapaAlterada("cli@d.com", "Ana", "Vaso", "abc123def45",
+                synapseforge.crud.infrastructure.entity.StatusPedido.IMPRESSAO);
+
+        verify(mailSender).send(msg);
+        assertEquals("Seu pedido está em Impressão – SynapseForge", msg.getSubject());
+
+        String corpo = textoHtml(msg.getContent());
+        assertTrue(corpo.contains("http://app.local/dashboard?pedido=abc123def45"));
+        assertTrue(corpo.contains("Impressão"));
+        assertTrue(corpo.contains("#DEF45"));
     }
 
     // O helper monta multipart (mixed > related > html): desce até achar o texto

@@ -12,7 +12,9 @@ import synapseforge.crud.DTO.Admin.AdminUserUpdateRequestDTO;
 import synapseforge.crud.infrastructure.entity.Role;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.DTO.Admin.AdminPedidoUpdateRequestDTO;
+import synapseforge.crud.mapper.PedidoAdminMapper;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -22,6 +24,7 @@ public class AdminService {
     private final UserRepository userRepository;
     private final PedidoRepository pedidoRepository;
     private final NotificacaoService notificacaoService;
+    private final PedidoAdminMapper pedidoAdminMapper;
 
     // =========================================================
     // USUÁRIOS
@@ -167,108 +170,19 @@ public class AdminService {
 
         StatusPedido statusAnterior = pedido.getStatus();
 
-        if (dto.getClienteId() != null) {
-            pedido.setClienteId(dto.getClienteId());
-        }
+        // PATCH parcial: só os campos enviados (não nulos) sobrescrevem o pedido.
+        // O código campo a campo é gerado pelo MapStruct (ver PedidoAdminMapper).
+        pedidoAdminMapper.atualizar(dto, pedido);
 
-        if (dto.getCliente() != null) {
-            pedido.setCliente(dto.getCliente());
-        }
-
-        if (dto.getProjeto() != null) {
-            pedido.setProjeto(dto.getProjeto());
-        }
-
-        if (dto.getDescricao() != null) {
-            pedido.setDescricao(dto.getDescricao());
-        }
-
-        if (dto.getMaterialId() != null) {
-            pedido.setMaterialId(dto.getMaterialId());
-        }
-
-        if (dto.getVolumeCm3() != null) {
-            pedido.setVolumeCm3(dto.getVolumeCm3());
-        }
-
-        if (dto.getTempoImpressaoHoras() != null) {
-            pedido.setTempoImpressaoHoras(
-                    dto.getTempoImpressaoHoras()
-            );
-        }
-
-        if (dto.getTempoMaoDeObraHoras() != null) {
-            pedido.setTempoMaoDeObraHoras(
-                    dto.getTempoMaoDeObraHoras()
-            );
-        }
-
-        if (dto.getCustoMaquinaHora() != null) {
-            pedido.setCustoMaquinaHora(
-                    dto.getCustoMaquinaHora()
-            );
-        }
-
-        if (dto.getCustoMaoDeObraHora() != null) {
-            pedido.setCustoMaoDeObraHora(
-                    dto.getCustoMaoDeObraHora()
-            );
-        }
-
-        if (dto.getMargemLucro() != null) {
-            pedido.setMargemLucro(
-                    dto.getMargemLucro()
-            );
-        }
-
-        if (dto.getCustoMaterial() != null) {
-            pedido.setCustoMaterial(
-                    dto.getCustoMaterial()
-            );
-        }
-
-        if (dto.getCustoMaquina() != null) {
-            pedido.setCustoMaquina(
-                    dto.getCustoMaquina()
-            );
-        }
-
-        if (dto.getCustoMaoDeObra() != null) {
-            pedido.setCustoMaoDeObra(
-                    dto.getCustoMaoDeObra()
-            );
-        }
-
-        if (dto.getCustoTotal() != null) {
-            pedido.setCustoTotal(
-                    dto.getCustoTotal()
-            );
-        }
-
-        if (dto.getPrecoFinal() != null) {
-            pedido.setPrecoFinal(
-                    dto.getPrecoFinal()
-            );
-        }
-
-        if (dto.getStatus() != null) {
-            pedido.setStatus(dto.getStatus());
-        }
-
-        if (dto.getPrazo() != null) {
-            pedido.setPrazo(dto.getPrazo());
-        }
-
-        pedido.setAtualizadoEm(
-                java.time.LocalDateTime.now()
-        );
+        pedido.setAtualizadoEm(LocalDateTime.now());
 
         Pedido atualizado =
                 pedidoRepository.save(pedido);
 
-        if (statusAnterior != StatusPedido.FINALIZADO
-                && atualizado.getStatus() == StatusPedido.FINALIZADO) {
-            notificacaoService.notificarPedidoFinalizado(atualizado);
+        // Etapa mudou (qualquer uma, inclusive FINALIZADO): avisa o cliente.
+        // CANCELADO é ignorado dentro do método.
+        if (atualizado.getStatus() != statusAnterior) {
+            notificacaoService.notificarEtapaAlterada(atualizado);
         }
 
         return toAdminPedidoResponseDTO(atualizado);

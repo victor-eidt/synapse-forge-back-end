@@ -7,6 +7,7 @@ import synapseforge.crud.DTO.Notificacao.NotificacaoResponseDTO;
 import synapseforge.crud.exception.RecursoNaoEncontradoException;
 import synapseforge.crud.infrastructure.entity.Notificacao;
 import synapseforge.crud.infrastructure.entity.Pedido;
+import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.infrastructure.entity.TipoNotificacao;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.NotificacaoRepository;
@@ -27,39 +28,48 @@ public class NotificacaoService {
 
 
     // =========================================================
-    // PEDIDO FINALIZADO -> avisa o cliente vinculado (sino + email)
+    // PEDIDO MUDOU DE ETAPA -> avisa o cliente vinculado (sino + email)
     // =========================================================
     //
-    // Nunca derruba a mudança de etapa: se falhar, só registra no log.
-    // Se o pedido regredir e for finalizado de novo enquanto o aviso
-    // anterior não foi lido, não duplica (nem o sino, nem o email).
-    // Sino e email são independentes: falha no SMTP não apaga o aviso.
+    // Método único para qualquer mudança de etapa: avançar, voltar e também
+    // finalizar (FINALIZADO é só mais uma etapa). Quem muda a etapa chama sempre
+    // este método e não precisa saber que tipos de aviso existem.
+    //
+    // Um aviso por pedido no sino: se o pedido mudar de novo antes de o cliente
+    // ler, o aviso existente é atualizado com a etapa nova (inclusive "Finalizado")
+    // em vez de empilhar "Impressão", "Pintura", "Acabamento"...
+    //
+    // CANCELADO não passa por aqui. Falha nunca derruba a mudança de etapa:
+    // só vai para o log. Sino e email são independentes.
     //
 
-    public void notificarPedidoFinalizado(Pedido pedido) {
+    public void notificarEtapaAlterada(Pedido pedido) {
 
         String clienteId = pedido.getClienteId();
+        StatusPedido etapa = pedido.getStatus();
 
-        if (clienteId == null || clienteId.isBlank()) {
+        if (clienteId == null || clienteId.isBlank()
+                || etapa == null
+                || etapa == StatusPedido.CANCELADO) {
             return;
         }
 
         try {
 
-            if (repository.existsByUsuarioIdAndTipoAndReferenciaIdAndLidaFalse(
+            List<Notificacao> naoLidos = repository.findByUsuarioIdAndTipoAndReferenciaIdAndLidaFalse(
                     clienteId,
-                    TipoNotificacao.PEDIDO_FINALIZADO,
+                    TipoNotificacao.PEDIDO_ETAPA_ALTERADA,
                     pedido.getId()
-            )) {
-                return;
-            }
+            );
 
-            Notificacao notificacao = new Notificacao();
+            Notificacao notificacao = naoLidos.isEmpty() ? new Notificacao() : naoLidos.get(0);
             notificacao.setUsuarioId(clienteId);
-            notificacao.setTipo(TipoNotificacao.PEDIDO_FINALIZADO);
+            notificacao.setTipo(TipoNotificacao.PEDIDO_ETAPA_ALTERADA);
             notificacao.setReferenciaId(pedido.getId());
             notificacao.setTitulo(pedido.getProjeto());
+            notificacao.setDetalhe(etapa.name());
             notificacao.setLida(false);
+            // data nova: o aviso sobe para o topo do sino como o mais recente
             notificacao.setCriadaEm(LocalDateTime.now());
 
             repository.save(notificacao);
@@ -67,54 +77,54 @@ public class NotificacaoService {
         } catch (RuntimeException e) {
 
             log.warn(
-                    "Não foi possível registrar a notificação de pedido finalizado {}: {}",
+                    "Não foi possível registrar a notificação de etapa do pedido {}: {}",
                     pedido.getId(),
                     e.getMessage()
             );
         }
 
-        enviarEmailPedidoFinalizado(pedido);
+        enviarEmailEtapaAlterada(pedido, etapa);
     }
 
-    private void enviarEmailPedidoFinalizado(Pedido pedido) {
+    private void enviarEmailEtapaAlterada(Pedido pedido, StatusPedido etapa) {
 
         try {
 
-            User cliente = userRepository.findById(pedido.getClienteId())
-                    .orElse(null);
+            User cliente = userRepository.findById(pedido.getClienteId()).orElse(null);
 
             if (cliente == null
                     || cliente.getEmail() == null
                     || cliente.getEmail().isBlank()) {
 
                 log.warn(
-                        "Email de pedido finalizado não enviado: cliente {} não encontrado ou sem email.",
+                        "Email de etapa não enviado: cliente {} não encontrado ou sem email.",
                         pedido.getClienteId()
                 );
                 return;
             }
 
-            // Email não confirmado pode ter sido digitado errado (ou ser de outra
-            // pessoa): não manda dados do pedido para um endereço não verificado
+            // mesma regra dos outros avisos: só para email verificado
             if (!cliente.isEmailConfirmado()) {
 
                 log.info(
-                        "Email de pedido finalizado não enviado: cliente {} sem email confirmado.",
+                        "Email de etapa não enviado: cliente {} sem email confirmado.",
                         pedido.getClienteId()
                 );
                 return;
             }
-            emailService.enviarPedidoFinalizado(
+
+            emailService.enviarPedidoEtapaAlterada(
                     cliente.getEmail(),
                     cliente.getNome(),
                     pedido.getProjeto(),
-                    pedido.getId()
+                    pedido.getId(),
+                    etapa
             );
 
         } catch (RuntimeException e) {
 
             log.warn(
-                    "Falha ao enviar email de pedido finalizado {}: {}",
+                    "Falha ao enviar email de etapa do pedido {}: {}",
                     pedido.getId(),
                     e.getMessage()
             );
@@ -289,6 +299,7 @@ public class NotificacaoService {
                 n.getTipo(),
                 n.getReferenciaId(),
                 n.getTitulo(),
+                n.getDetalhe(),
                 n.isLida(),
                 n.getCriadaEm()
         );

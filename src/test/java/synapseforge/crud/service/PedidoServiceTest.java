@@ -142,11 +142,12 @@ class PedidoServiceTest {
 
         service.avancarStatus("p-1", "user-1", Role.ADMIN);
 
-        verify(notificacaoService).notificarPedidoFinalizado(pedido);
+        // finalizado usa o mesmo método das outras etapas
+        verify(notificacaoService).notificarEtapaAlterada(pedido);
     }
 
     @Test
-    void avancarParaEtapaIntermediariaNaoDeveNotificar() {
+    void avancarParaEtapaIntermediariaDeveAvisarAEtapa() {
         Pedido pedido = new Pedido();
         pedido.setId("p-1");
         pedido.setUsuarioId("user-1");
@@ -158,7 +159,7 @@ class PedidoServiceTest {
 
         service.avancarStatus("p-1", "user-1", Role.ADMIN);
 
-        verifyNoInteractions(notificacaoService);
+        verify(notificacaoService).notificarEtapaAlterada(pedido);
     }
 
     @Test
@@ -174,6 +175,8 @@ class PedidoServiceTest {
         Pedido result = service.regredirStatus("p-1", "user-1", Role.ADMIN);
 
         assertEquals(StatusPedido.MODELAGEM, result.getStatus());
+        // voltar etapa também avisa o cliente
+        verify(notificacaoService).notificarEtapaAlterada(pedido);
     }
 
     @Test

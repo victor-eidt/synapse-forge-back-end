@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import synapseforge.crud.exception.RecursoNaoEncontradoException;
 import synapseforge.crud.infrastructure.entity.Notificacao;
 import synapseforge.crud.infrastructure.entity.Pedido;
+import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.infrastructure.entity.TipoNotificacao;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.NotificacaoRepository;
@@ -46,15 +47,17 @@ class NotificacaoServiceTest {
     }
 
     @Test
-    void pedidoFinalizadoDeveCriarNotificacaoParaOCliente() {
-        service.notificarPedidoFinalizado(pedido("cli-1"));
+    void finalizarDeveGerarAvisoDeEtapaComDetalheFinalizado() {
+        service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.FINALIZADO));
 
         ArgumentCaptor<Notificacao> captor = ArgumentCaptor.forClass(Notificacao.class);
         verify(repository).save(captor.capture());
         Notificacao salva = captor.getValue();
 
+        // finalizado é só mais uma etapa: mesmo tipo, etapa no detalhe
         assertEquals("cli-1", salva.getUsuarioId());
-        assertEquals(TipoNotificacao.PEDIDO_FINALIZADO, salva.getTipo());
+        assertEquals(TipoNotificacao.PEDIDO_ETAPA_ALTERADA, salva.getTipo());
+        assertEquals("FINALIZADO", salva.getDetalhe());
         assertEquals("p-1", salva.getReferenciaId());
         assertEquals("Miniatura dragão", salva.getTitulo());
         assertFalse(salva.isLida());
@@ -63,7 +66,10 @@ class NotificacaoServiceTest {
 
     @Test
     void pedidoSemClienteNaoDeveNotificar() {
-        service.notificarPedidoFinalizado(pedido(null));
+        Pedido semCliente = pedido(null);
+        semCliente.setStatus(StatusPedido.FINALIZADO);
+
+        service.notificarEtapaAlterada(semCliente);
 
         verifyNoInteractions(repository, emailService);
     }
@@ -79,32 +85,31 @@ class NotificacaoServiceTest {
     }
 
     @Test
-    void pedidoFinalizadoDeveEnviarEmailAoCliente() {
+    void finalizarDeveEnviarEmailComAEtapaFinalizado() {
         when(userRepository.findById("cli-1")).thenReturn(Optional.of(cliente("ana@x.com")));
 
-        service.notificarPedidoFinalizado(pedido("cli-1"));
+        service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.FINALIZADO));
 
-        verify(emailService).enviarPedidoFinalizado("ana@x.com", "Ana", "Miniatura dragão", "p-1");
+        verify(emailService).enviarPedidoEtapaAlterada("ana@x.com", "Ana", "Miniatura dragão", "p-1", StatusPedido.FINALIZADO);
     }
 
     @Test
     void clienteSemEmailNaoDeveEnviarMasMantemOAviso() {
         when(userRepository.findById("cli-1")).thenReturn(Optional.of(cliente(" ")));
 
-        service.notificarPedidoFinalizado(pedido("cli-1"));
+        service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.PINTURA));
 
         verify(repository).save(any());
         verifyNoInteractions(emailService);
     }
 
     @Test
-
     void clienteComEmailNaoConfirmadoNaoDeveReceberEmail() {
         User u = cliente("ana@x.com");
         u.setEmailConfirmado(false);
         when(userRepository.findById("cli-1")).thenReturn(Optional.of(u));
 
-        service.notificarPedidoFinalizado(pedido("cli-1"));
+        service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.PINTURA));
 
         verify(repository).save(any());
         verifyNoInteractions(emailService);
@@ -114,28 +119,17 @@ class NotificacaoServiceTest {
     void falhaNoEmailNaoDevePropagar() {
         when(userRepository.findById("cli-1")).thenReturn(Optional.of(cliente("ana@x.com")));
         doThrow(new RuntimeException("smtp fora")).when(emailService)
-                .enviarPedidoFinalizado(any(), any(), any(), any());
+                .enviarPedidoEtapaAlterada(any(), any(), any(), any(), any());
 
-        assertDoesNotThrow(() -> service.notificarPedidoFinalizado(pedido("cli-1")));
+        assertDoesNotThrow(() -> service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.FINALIZADO)));
         verify(repository).save(any());
-    }
-
-    @Test
-    void naoDeveDuplicarAvisoAindaNaoLido() {
-        when(repository.existsByUsuarioIdAndTipoAndReferenciaIdAndLidaFalse(
-                "cli-1", TipoNotificacao.PEDIDO_FINALIZADO, "p-1")).thenReturn(true);
-
-        service.notificarPedidoFinalizado(pedido("cli-1"));
-
-        verify(repository, never()).save(any());
-        verifyNoInteractions(emailService);
     }
 
     @Test
     void falhaAoSalvarNaoDevePropagar() {
         when(repository.save(any())).thenThrow(new RuntimeException("mongo fora"));
 
-        assertDoesNotThrow(() -> service.notificarPedidoFinalizado(pedido("cli-1")));
+        assertDoesNotThrow(() -> service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.PINTURA)));
     }
 
     @Test
@@ -237,5 +231,81 @@ class NotificacaoServiceTest {
 
         assertDoesNotThrow(() -> service.notificarOrdemPinturaAtribuida(
                 "ord-1", "tec-1", "gerente-1", "Vaso", "Azul", LocalDate.now()));
+    }
+
+    // =========================================================
+    // PEDIDO MUDOU DE ETAPA
+    // =========================================================
+
+    private Pedido pedidoNaEtapa(StatusPedido etapa) {
+        Pedido p = pedido("cli-1");
+        p.setStatus(etapa);
+        return p;
+    }
+
+    @Test
+    void mudancaDeEtapaDeveCriarAvisoComAEtapaEEnviarEmail() {
+        when(userRepository.findById("cli-1")).thenReturn(Optional.of(cliente("ana@x.com")));
+
+        service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.PINTURA));
+
+        ArgumentCaptor<Notificacao> captor = ArgumentCaptor.forClass(Notificacao.class);
+        verify(repository).save(captor.capture());
+        Notificacao salva = captor.getValue();
+        assertEquals("cli-1", salva.getUsuarioId());
+        assertEquals(TipoNotificacao.PEDIDO_ETAPA_ALTERADA, salva.getTipo());
+        assertEquals("p-1", salva.getReferenciaId());
+        assertEquals("Miniatura dragão", salva.getTitulo());
+        assertEquals("PINTURA", salva.getDetalhe());
+        assertFalse(salva.isLida());
+
+        verify(emailService).enviarPedidoEtapaAlterada("ana@x.com", "Ana", "Miniatura dragão", "p-1", StatusPedido.PINTURA);
+    }
+
+    @Test
+    void novaEtapaAntesDeLerDeveAtualizarOAvisoEmVezDeEmpilhar() {
+        Notificacao anterior = new Notificacao();
+        anterior.setId("n-1");
+        anterior.setDetalhe("IMPRESSAO");
+        when(repository.findByUsuarioIdAndTipoAndReferenciaIdAndLidaFalse(
+                "cli-1", TipoNotificacao.PEDIDO_ETAPA_ALTERADA, "p-1")).thenReturn(List.of(anterior));
+
+        service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.PINTURA));
+
+        verify(repository).save(anterior);
+        assertEquals("n-1", anterior.getId());
+        assertEquals("PINTURA", anterior.getDetalhe());
+    }
+
+    @Test
+    void canceladoNaoGeraAvisoDeEtapa() {
+        service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.CANCELADO));
+
+        verifyNoInteractions(repository, emailService);
+    }
+
+    @Test
+    void finalizarComAvisoDeEtapaAbertoDeveAtualizarParaFinalizado() {
+        Notificacao emAcabamento = new Notificacao();
+        emAcabamento.setId("n-1");
+        emAcabamento.setDetalhe("ACABAMENTO");
+        when(repository.findByUsuarioIdAndTipoAndReferenciaIdAndLidaFalse(
+                "cli-1", TipoNotificacao.PEDIDO_ETAPA_ALTERADA, "p-1")).thenReturn(List.of(emAcabamento));
+
+        service.notificarEtapaAlterada(pedidoNaEtapa(StatusPedido.FINALIZADO));
+
+        // o mesmo aviso passa a dizer "Finalizado" (não fica "Acabamento" ao lado)
+        verify(repository).save(emAcabamento);
+        assertEquals("FINALIZADO", emAcabamento.getDetalhe());
+    }
+
+    @Test
+    void pedidoSemClienteNaoGeraAvisoDeEtapa() {
+        Pedido semCliente = pedido(null);
+        semCliente.setStatus(StatusPedido.PINTURA);
+
+        service.notificarEtapaAlterada(semCliente);
+
+        verifyNoInteractions(repository, emailService);
     }
 }

@@ -38,6 +38,10 @@ public class Notificacao {
     // Texto principal exibido no sino (ex.: nome do projeto)
     private String titulo;
 
+    // Dado extra que completa a frase no front (ex.: a etapa nova: "PINTURA").
+    // Guardado como código, não texto pronto, para o front traduzir.
+    private String detalhe;
+
     private boolean lida;
 
     private LocalDateTime criadaEm;

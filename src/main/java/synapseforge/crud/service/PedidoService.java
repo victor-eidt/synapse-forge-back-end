@@ -418,10 +418,9 @@ public class PedidoService {
         pedido.setAtualizadoEm(LocalDateTime.now());
         Pedido salvo = repository.save(pedido);
 
-        // Só depois de salvo: se a etapa não mudou, o cliente não é avisado
-        if (novoStatus == StatusPedido.FINALIZADO) {
-            notificacaoService.notificarPedidoFinalizado(salvo);
-        }
+        // Só depois de salvo: se a etapa não mudou, o cliente não é avisado.
+        // Vale para todas as etapas, inclusive FINALIZADO.
+        notificacaoService.notificarEtapaAlterada(salvo);
 
         return salvo;
     }
@@ -470,7 +469,12 @@ public class PedidoService {
         // o estorno é da etapa abandonada (status atual), não da etapa de destino
         estoqueService.estornarPorEtapa(id, statusAtual, usuarioId);
         pedido.setAtualizadoEm(LocalDateTime.now());
-        return repository.save(pedido);
+        Pedido salvo = repository.save(pedido);
+
+        // voltar etapa também é mudança: o cliente vê onde o pedido está agora
+        notificacaoService.notificarEtapaAlterada(salvo);
+
+        return salvo;
     }
 
 
