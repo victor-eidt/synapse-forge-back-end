@@ -1,6 +1,7 @@
 package synapseforge.crud.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -66,9 +67,19 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired
     private BCryptPasswordEncoder passwordEncoder;
 
+    // Usuarios de teste tem senha fixa (1234): desligar em producao (APP_SEED_ENABLED=false)
+    @Value("${app.seed.enabled:true}")
+    private boolean seedEnabled;
+
     @Override
     public void run(String... args) throws Exception {
         migrarUsuariosExistentes();
+
+        if (!seedEnabled) {
+            System.out.println("Dados de teste desativados (app.seed.enabled=false)");
+            return;
+        }
+
         seedTestUsers();
         seedTestEquipe();
         migrarDadosSemEquipe();
