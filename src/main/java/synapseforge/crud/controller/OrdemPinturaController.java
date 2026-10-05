@@ -32,7 +32,7 @@ public class OrdemPinturaController {
         return service.listar((String) auth.getPrincipal());
     }
 
-    // Opções do select de técnico: só usuários TECNICO da equipe de quem pede
+    // Opções do select de técnico: técnicos ativos e o gerente da equipe de quem pede
     @GetMapping("/tecnicos")
     public List<TecnicoResumoDTO> listarTecnicos(Authentication auth) {
         return service.listarTecnicos((String) auth.getPrincipal());
