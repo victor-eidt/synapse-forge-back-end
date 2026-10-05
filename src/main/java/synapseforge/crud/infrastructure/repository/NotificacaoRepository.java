@@ -17,9 +17,11 @@ public interface NotificacaoRepository extends MongoRepository<Notificacao, Stri
 
     Optional<Notificacao> findByIdAndUsuarioId(String id, String usuarioId);
 
-    boolean existsByUsuarioIdAndTipoAndReferenciaIdAndLidaFalse(
+    // Aviso ainda não lido do mesmo tipo para o mesmo registro (ex.: etapa do pedido p-1)
+    List<Notificacao> findByUsuarioIdAndTipoAndReferenciaIdAndLidaFalse(
             String usuarioId,
             TipoNotificacao tipo,
             String referenciaId
     );
+
 }
