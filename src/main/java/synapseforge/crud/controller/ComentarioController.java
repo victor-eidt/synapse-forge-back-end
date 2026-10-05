@@ -76,6 +76,7 @@ public class ComentarioController {
     }
 
     @PutMapping("/{comentarioId}")
+    @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE')")
     public ComentarioResponseDTO editar (
         @PathVariable String pedidoId,
         @PathVariable String comentarioId,

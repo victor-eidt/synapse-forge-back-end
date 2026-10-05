@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import synapseforge.crud.DTO.Comentario.ComentarioRequestDTO;
 import synapseforge.crud.DTO.Comentario.ComentarioResponseDTO;
+import synapseforge.crud.exception.RecursoNaoEncontradoException;
 import synapseforge.crud.infrastructure.entity.Comentario;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.Role;
@@ -69,12 +70,13 @@ public class ComentarioService {
         }
 
         // Reutiliza a regra já existente de acesso ao Pedido.
-        // Se o pedido não pertencer à equipe do usuário,
-        // o próprio PedidoService impedirá o acesso.
+        // buscarPorId devolve vazio quando o pedido não existe ou é de outra equipe.
         pedidoService.buscarPorId(
                 pedidoId,
                 usuarioId,
                 role
+        ).orElseThrow(() ->
+                new RecursoNaoEncontradoException("Pedido não encontrado")
         );
     }
 
@@ -91,7 +93,7 @@ public class ComentarioService {
         Comentario comentario = comentarioRepository
                 .findById(comentarioId)
                 .orElseThrow(() ->
-                        new RuntimeException("Comentário não encontrado")
+                        new RecursoNaoEncontradoException("Comentário não encontrado")
                 );
         //Verifica Pedido
         if (!pedidoId.equals(comentario.getPedidoId())) {
@@ -122,7 +124,7 @@ public class ComentarioService {
         Comentario comentario = comentarioRepository
                 .findById(comentarioId)
                 .orElseThrow(() ->
-                        new RuntimeException("Comentário não encontrado.")
+                        new RecursoNaoEncontradoException("Comentário não encontrado.")
                 );
         // Verifica Pedido
         if (!pedidoId.equals(comentario.getPedidoId())) {
