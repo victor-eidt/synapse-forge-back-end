@@ -1,5 +1,9 @@
 package synapseforge.crud.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -28,6 +32,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
+@Tag(name = "Pedidos", description = "Pedidos de impressão e pintura e suas etapas de produção (Modelagem → Impressão → Pintura → Acabamento → Finalizado).")
 @RestController
 @RequestMapping("/pedidos")
 public class PedidoController {
@@ -70,6 +75,7 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Criar pedido (JSON)", description = "Cria um pedido na etapa MODELAGEM, na equipe do usuário logado.")
     @PostMapping
     public PedidoResponseDTO criar(
             @RequestBody @Valid PedidoRequestDTO dto,
@@ -103,45 +109,46 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Criar pedido com arquivos", description = "Mesmo cadastro, em multipart, com arquivo 3D e imagens de referência opcionais.")
     @PostMapping(
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public PedidoResponseDTO criarComArquivos(
-            @RequestParam(value = "clienteId", required = false)
+            @Parameter(description = "ID do usuário cliente", example = "6704a1c2e4b0f81a2c3d4e02") @RequestParam(value = "clienteId", required = false)
             String clienteId,
 
-            @RequestParam(value = "cliente", required = false)
+            @Parameter(description = "Nome do cliente", example = "Mariana Costa") @RequestParam(value = "cliente", required = false)
             String cliente,
 
-            @RequestParam("projeto")
+            @Parameter(description = "Nome do projeto", example = "Miniatura do Dragão Vermelho") @RequestParam("projeto")
             String projeto,
 
-            @RequestParam(value = "descricao", required = false)
+            @Parameter(description = "Descrição do projeto", example = "Miniatura em escala 1:24 para RPG.") @RequestParam(value = "descricao", required = false)
             String descricao,
 
-            @RequestParam("prazo")
+            @Parameter(description = "Data de entrega (yyyy-MM-dd)", example = "2026-10-20") @RequestParam("prazo")
             @DateTimeFormat(
                     iso = DateTimeFormat.ISO.DATE
             )
             LocalDate prazo,
 
-            @RequestParam(value = "materialId", required = false) String materialId,
-            @RequestParam(value = "volumeCm3", required = false) Double volumeCm3,
-            @RequestParam(value = "tempoImpressaoHoras", required = false) Double tempoImpressaoHoras,
-            @RequestParam(value = "tempoMaoDeObraHoras", required = false) Double tempoMaoDeObraHoras,
-            @RequestParam(value = "custoMaquinaHora", required = false) BigDecimal custoMaquinaHora,
-            @RequestParam(value = "custoMaoDeObraHora", required = false) BigDecimal custoMaoDeObraHora,
-            @RequestParam(value = "margemLucro", required = false) BigDecimal margemLucro,
-            @RequestParam(value = "custoMaterial", required = false) BigDecimal custoMaterial,
-            @RequestParam(value = "custoMaquina", required = false) BigDecimal custoMaquina,
-            @RequestParam(value = "custoMaoDeObra", required = false) BigDecimal custoMaoDeObra,
-            @RequestParam(value = "custoTotal", required = false) BigDecimal custoTotal,
-            @RequestParam(value = "precoFinal", required = false) BigDecimal precoFinal,
+            @Parameter(description = "ID do material", example = "6704a1c2e4b0f81a2c3d4e03") @RequestParam(value = "materialId", required = false) String materialId,
+            @Parameter(description = "Volume da peça, em cm³", example = "85.5") @RequestParam(value = "volumeCm3", required = false) Double volumeCm3,
+            @Parameter(description = "Tempo de impressão, em horas", example = "6.5") @RequestParam(value = "tempoImpressaoHoras", required = false) Double tempoImpressaoHoras,
+            @Parameter(description = "Tempo de mão de obra, em horas", example = "2.0") @RequestParam(value = "tempoMaoDeObraHoras", required = false) Double tempoMaoDeObraHoras,
+            @Parameter(description = "Custo da impressora por hora, em R$", example = "4.50") @RequestParam(value = "custoMaquinaHora", required = false) BigDecimal custoMaquinaHora,
+            @Parameter(description = "Custo da mão de obra por hora, em R$", example = "35.00") @RequestParam(value = "custoMaoDeObraHora", required = false) BigDecimal custoMaoDeObraHora,
+            @Parameter(description = "Margem de lucro, em %", example = "30") @RequestParam(value = "margemLucro", required = false) BigDecimal margemLucro,
+            @Parameter(description = "Custo do material, em R$", example = "12.72") @RequestParam(value = "custoMaterial", required = false) BigDecimal custoMaterial,
+            @Parameter(description = "Custo de máquina, em R$", example = "29.25") @RequestParam(value = "custoMaquina", required = false) BigDecimal custoMaquina,
+            @Parameter(description = "Custo de mão de obra, em R$", example = "70.00") @RequestParam(value = "custoMaoDeObra", required = false) BigDecimal custoMaoDeObra,
+            @Parameter(description = "Custo total, em R$", example = "111.97") @RequestParam(value = "custoTotal", required = false) BigDecimal custoTotal,
+            @Parameter(description = "Preço final, em R$", example = "145.56") @RequestParam(value = "precoFinal", required = false) BigDecimal precoFinal,
 
-            @RequestParam(value = "objeto3D", required = false)
+            @Parameter(description = "Arquivo 3D da peça (STL ou OBJ)") @RequestParam(value = "objeto3D", required = false)
             MultipartFile objeto3D,
 
-            @RequestParam(
+            @Parameter(description = "Imagens de referência (PNG/JPG)") @RequestParam(
                     value = "imagensReferencia",
                     required = false
             )
@@ -276,9 +283,10 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Listar pedidos", description = "Cliente vê os próprios pedidos; equipe vê os pedidos da oficina. Filtro opcional por etapa.")
     @GetMapping
     public List<PedidoResponseDTO> listar(
-            @RequestParam(
+            @Parameter(description = "Filtra pela etapa de produção", example = "IMPRESSAO") @RequestParam(
                     required = false
             )
             StatusPedido status,
@@ -318,9 +326,10 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Buscar pedido", description = "Retorna o pedido com as imagens de referência em base64.")
     @GetMapping("/{id}")
     public PedidoResponseDTO buscar(
-            @PathVariable String id,
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -356,9 +365,10 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Avançar etapa", description = "Passa o pedido para a próxima etapa, dá baixa nos insumos da etapa e avisa o cliente (sino + e-mail).")
     @PatchMapping("/{id}/status")
     public PedidoResponseDTO avancarStatus(
-            @PathVariable String id,
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -388,9 +398,10 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Voltar etapa", description = "Volta uma etapa, estorna os insumos da etapa abandonada e avisa o cliente.")
     @PatchMapping("/{id}/status/regredir")
     public PedidoResponseDTO regredirStatus(
-            @PathVariable String id,
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -420,9 +431,10 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Cancelar pedido", description = "Cancela o pedido (sem estorno de insumos já consumidos).")
     @PatchMapping("/{id}/cancelar")
     public PedidoResponseDTO cancelar(
-            @PathVariable String id,
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -452,12 +464,13 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Editar pedido (JSON)", description = "Atualiza os dados do pedido. A etapa não muda por aqui.")
     @PutMapping(
             value = "/{id}",
             consumes = MediaType.APPLICATION_JSON_VALUE
     )
     public PedidoResponseDTO atualizar(
-            @PathVariable String id,
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
             @RequestBody @Valid PedidoRequestDTO dto,
             Authentication auth
     ) {
@@ -495,78 +508,79 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Editar pedido com arquivos", description = "Mesma edição, em multipart, permitindo trocar o arquivo 3D e as imagens.")
     @PutMapping(
             value = "/{id}",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public PedidoResponseDTO atualizarComArquivos(
-            @PathVariable String id,
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
 
-            @RequestParam(
+            @Parameter(description = "ID do usuário cliente", example = "6704a1c2e4b0f81a2c3d4e02") @RequestParam(
                     value = "clienteId",
                     required = false
             )
             String clienteId,
 
-            @RequestParam(
+            @Parameter(description = "Nome do cliente", example = "Mariana Costa") @RequestParam(
                     value = "cliente",
                     required = false
             )
             String cliente,
 
-            @RequestParam("projeto")
+            @Parameter(description = "Nome do projeto", example = "Miniatura do Dragão Vermelho") @RequestParam("projeto")
             String projeto,
 
-            @RequestParam(
+            @Parameter(description = "Descrição do projeto", example = "Miniatura em escala 1:24 para RPG.") @RequestParam(
                     value = "descricao",
                     required = false
             )
             String descricao,
 
-            @RequestParam("prazo")
+            @Parameter(description = "Data de entrega (yyyy-MM-dd)", example = "2026-10-20") @RequestParam("prazo")
             @DateTimeFormat(
                     iso = DateTimeFormat.ISO.DATE
             )
             LocalDate prazo,
 
-            @RequestParam(value = "materialId", required = false) String materialId,
-            @RequestParam(value = "volumeCm3", required = false) Double volumeCm3,
-            @RequestParam(value = "tempoImpressaoHoras", required = false) Double tempoImpressaoHoras,
-            @RequestParam(value = "tempoMaoDeObraHoras", required = false) Double tempoMaoDeObraHoras,
-            @RequestParam(value = "custoMaquinaHora", required = false) BigDecimal custoMaquinaHora,
-            @RequestParam(value = "custoMaoDeObraHora", required = false) BigDecimal custoMaoDeObraHora,
-            @RequestParam(value = "margemLucro", required = false) BigDecimal margemLucro,
-            @RequestParam(value = "custoMaterial", required = false) BigDecimal custoMaterial,
-            @RequestParam(value = "custoMaquina", required = false) BigDecimal custoMaquina,
-            @RequestParam(value = "custoMaoDeObra", required = false) BigDecimal custoMaoDeObra,
-            @RequestParam(value = "custoTotal", required = false) BigDecimal custoTotal,
-            @RequestParam(value = "precoFinal", required = false) BigDecimal precoFinal,
+            @Parameter(description = "ID do material", example = "6704a1c2e4b0f81a2c3d4e03") @RequestParam(value = "materialId", required = false) String materialId,
+            @Parameter(description = "Volume da peça, em cm³", example = "85.5") @RequestParam(value = "volumeCm3", required = false) Double volumeCm3,
+            @Parameter(description = "Tempo de impressão, em horas", example = "6.5") @RequestParam(value = "tempoImpressaoHoras", required = false) Double tempoImpressaoHoras,
+            @Parameter(description = "Tempo de mão de obra, em horas", example = "2.0") @RequestParam(value = "tempoMaoDeObraHoras", required = false) Double tempoMaoDeObraHoras,
+            @Parameter(description = "Custo da impressora por hora, em R$", example = "4.50") @RequestParam(value = "custoMaquinaHora", required = false) BigDecimal custoMaquinaHora,
+            @Parameter(description = "Custo da mão de obra por hora, em R$", example = "35.00") @RequestParam(value = "custoMaoDeObraHora", required = false) BigDecimal custoMaoDeObraHora,
+            @Parameter(description = "Margem de lucro, em %", example = "30") @RequestParam(value = "margemLucro", required = false) BigDecimal margemLucro,
+            @Parameter(description = "Custo do material, em R$", example = "12.72") @RequestParam(value = "custoMaterial", required = false) BigDecimal custoMaterial,
+            @Parameter(description = "Custo de máquina, em R$", example = "29.25") @RequestParam(value = "custoMaquina", required = false) BigDecimal custoMaquina,
+            @Parameter(description = "Custo de mão de obra, em R$", example = "70.00") @RequestParam(value = "custoMaoDeObra", required = false) BigDecimal custoMaoDeObra,
+            @Parameter(description = "Custo total, em R$", example = "111.97") @RequestParam(value = "custoTotal", required = false) BigDecimal custoTotal,
+            @Parameter(description = "Preço final, em R$", example = "145.56") @RequestParam(value = "precoFinal", required = false) BigDecimal precoFinal,
 
-            @RequestParam(
+            @Parameter(description = "Filtra pela etapa de produção", example = "IMPRESSAO") @RequestParam(
                     value = "status",
                     required = false
             )
             StatusPedido status,
 
-            @RequestParam(
+            @Parameter(description = "Arquivo 3D da peça (STL ou OBJ)") @RequestParam(
                     value = "objeto3D",
                     required = false
             )
             MultipartFile objeto3D,
 
-            @RequestParam(
+            @Parameter(description = "true para remover o arquivo 3D atual", example = "false") @RequestParam(
                     value = "removerObjeto3D",
                     defaultValue = "false"
             )
             boolean removerObjeto3D,
 
-            @RequestParam(
+            @Parameter(description = "Imagens de referência (PNG/JPG)") @RequestParam(
                     value = "imagensReferencia",
                     required = false
             )
             MultipartFile[] imagensReferencia,
 
-            @RequestParam(
+            @Parameter(description = "IDs das imagens de referência que devem ser removidas", example = "6704a1c2e4b0f81a2c3d4e12") @RequestParam(
                     value = "imagensRemover",
                     required = false
             )
@@ -710,9 +724,10 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Excluir pedido", description = "Remove o pedido e seus arquivos.")
     @DeleteMapping("/{id}")
     public void deletar(
-            @PathVariable String id,
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -737,11 +752,12 @@ public class PedidoController {
     @PreAuthorize(
             "hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')"
     )
+    @Operation(summary = "Baixar arquivo 3D", description = "Download do arquivo 3D do pedido.")
     @GetMapping("/{id}/obj3d")
     public ResponseEntity<
             org.springframework.core.io.InputStreamResource
             > getObjeto3D(
-            @PathVariable String id,
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
             Authentication auth
     ) throws IOException {
 
@@ -842,9 +858,10 @@ public class PedidoController {
     // =========================================================
 
     @PreAuthorize("hasRole('GERENTE')")
+    @Operation(summary = "Gerar ordem de serviço (PDF)", description = "Gera o PDF da ordem de serviço do pedido.")
     @GetMapping("/{id}/ordem-servico")
     public ResponseEntity<byte[]> gerarOrdemServico(
-            @PathVariable String id,
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
             Authentication auth
     ) {
 

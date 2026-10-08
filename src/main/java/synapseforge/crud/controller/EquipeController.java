@@ -1,5 +1,12 @@
 package synapseforge.crud.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
@@ -29,6 +36,7 @@ import synapseforge.crud.infrastructure.security.JwtService;
 import java.util.List;
 import java.util.Map;
 
+@Tag(name = "Equipes", description = "Equipe (oficina): criação, integrantes, convites, foto e banner.")
 @RestController
 @RequestMapping("/equipes")
 @RequiredArgsConstructor
@@ -48,6 +56,7 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Criar equipe", description = "Cria a equipe do gerente logado.")
     @PostMapping
     public ResponseEntity<EquipeResponseDTO> criar(
             @Valid @RequestBody EquipeRequestDTO dto,
@@ -74,6 +83,7 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN', 'TECNICO')")
+    @Operation(summary = "Minha equipe", description = "Retorna a equipe do usuário logado (gerente ou técnico).")
     @GetMapping("/minha")
     public ResponseEntity<EquipeResponseDTO> minhaEquipe(
             Authentication auth
@@ -123,6 +133,7 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN', 'TECNICO')")
+    @Operation(summary = "Integrantes da minha equipe", description = "Lista os usuários da equipe do usuário logado.")
     @GetMapping("/minha/integrantes")
     public List<UserResponseDTO> listarIntegrantes(
             Authentication auth
@@ -167,10 +178,11 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Convidar usuário", description = "Envia um convite por e-mail para o usuário (cliente) entrar na equipe como técnico. O convite expira em 7 dias.")
     @PostMapping("/{equipeId}/convites/{usuarioId}")
     public ConviteEquipeResponseDTO criarConvite(
-            @PathVariable String equipeId,
-            @PathVariable String usuarioId,
+            @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String equipeId,
+            @Parameter(description = "ID do usuário", example = "6704a1c2e4b0f81a2c3d4e02") @PathVariable String usuarioId,
             Authentication auth
     ) {
 
@@ -193,9 +205,10 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Convites pendentes da equipe", description = "Lista os convites ainda não respondidos.")
     @GetMapping("/{equipeId}/convites")
     public List<ConviteEquipeResponseDTO> listarConvites(
-            @PathVariable String equipeId,
+            @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String equipeId,
             Authentication auth
     ) {
 
@@ -224,9 +237,10 @@ public class EquipeController {
     // CONSULTAR CONVITE PELO TOKEN
     // =========================================================
 
+    @Operation(summary = "Ver convite pelo token", description = "Rota pública usada pelo link do e-mail.")
     @GetMapping("/convites/{token}")
     public ConviteEquipeResponseDTO buscarConvite(
-            @PathVariable String token
+            @Parameter(description = "Token recebido por e-mail", example = "3f9c2b7e-8a41-4d2e-9b6f-1c5d7e8a9b0c") @PathVariable String token
     ) {
 
         ConviteEquipe convite =
@@ -240,9 +254,10 @@ public class EquipeController {
     // ACEITAR CONVITE
     // =========================================================
 
+    @Operation(summary = "Aceitar convite pelo token", description = "Rota pública do link do e-mail: o usuário entra na equipe e passa a ser TECNICO.")
     @PostMapping("/convites/{token}/aceitar")
     public UserResponseDTO aceitarConvite(
-            @PathVariable String token
+            @Parameter(description = "Token recebido por e-mail", example = "3f9c2b7e-8a41-4d2e-9b6f-1c5d7e8a9b0c") @PathVariable String token
     ) {
 
         User usuario =
@@ -258,6 +273,7 @@ public class EquipeController {
     // Fora de /equipes/convites/** de propósito: aquelas rotas são
     // públicas (link do e-mail); estas exigem login.
 
+    @Operation(summary = "Meu convite pendente", description = "Convite pendente do usuário logado; 204 quando não há.")
     @GetMapping("/meu-convite")
     public ResponseEntity<MeuConviteResponseDTO> meuConvite(
             Authentication auth
@@ -279,6 +295,8 @@ public class EquipeController {
                 );
     }
 
+    @Operation(summary = "Aceitar meu convite", description = "Aceita o convite pendente; devolve um token novo, já com o papel TECNICO.")
+    @ApiResponse(responseCode = "200", description = "Convite aceito: novo token com o papel TECNICO", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = "{\"access_token\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2NzA0YTFjMmU0YjBmODFhMmMzZDRlMDEiLCJyb2xlIjoiR0VSRU5URSJ9.Xq3r8Kp2mZ7vT1nH5yL0wQe4sD9fJ6bA2cG8uR1tY0o\", \"user_id\": \"6704a1c2e4b0f81a2c3d4e02\"}")))
     @PostMapping("/meu-convite/aceitar")
     public Map<String, String> aceitarMeuConvite(
             Authentication auth
@@ -301,6 +319,7 @@ public class EquipeController {
         );
     }
 
+    @Operation(summary = "Recusar meu convite", description = "Recusa o convite pendente; o gerente é avisado por e-mail.")
     @PostMapping("/meu-convite/recusar")
     public ResponseEntity<Void> recusarMeuConvite(
             Authentication auth
@@ -318,9 +337,10 @@ public class EquipeController {
     // RECUSAR CONVITE
     // =========================================================
 
+    @Operation(summary = "Recusar convite pelo token", description = "Rota pública do link do e-mail.")
     @PostMapping("/convites/{token}/recusar")
     public UserResponseDTO recusarConvite(
-            @PathVariable String token
+            @Parameter(description = "Token recebido por e-mail", example = "3f9c2b7e-8a41-4d2e-9b6f-1c5d7e8a9b0c") @PathVariable String token
     ) {
 
         User usuario =
@@ -335,10 +355,11 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Remover integrante", description = "Tira o usuário da equipe; ele volta a ser CLIENTE.")
     @DeleteMapping("/{equipeId}/integrantes/{usuarioId}")
     public UserResponseDTO removerIntegrante(
-            @PathVariable String equipeId,
-            @PathVariable String usuarioId,
+            @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String equipeId,
+            @Parameter(description = "ID do usuário", example = "6704a1c2e4b0f81a2c3d4e02") @PathVariable String usuarioId,
             Authentication auth
     ) {
 
@@ -369,6 +390,8 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasRole('TECNICO')")
+    @Operation(summary = "Sair da equipe", description = "O técnico logado sai da equipe e volta a ser CLIENTE.")
+    @ApiResponse(responseCode = "200", description = "Saiu da equipe: novo token com o papel CLIENTE", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = "{\"access_token\": \"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI2NzA0YTFjMmU0YjBmODFhMmMzZDRlMDEiLCJyb2xlIjoiR0VSRU5URSJ9.Xq3r8Kp2mZ7vT1nH5yL0wQe4sD9fJ6bA2cG8uR1tY0o\", \"user_id\": \"6704a1c2e4b0f81a2c3d4e02\"}")))
     @DeleteMapping("/minha/integrantes")
     public Map<String, String> sairDaEquipe(
             Authentication auth
@@ -412,9 +435,10 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Renomear equipe", description = "Altera o nome da equipe.")
     @PutMapping("/{id}")
     public EquipeResponseDTO atualizar(
-            @PathVariable String id,
+            @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String id,
             @Valid @RequestBody EquipeRequestDTO dto,
             Authentication auth
     ) {
@@ -437,13 +461,14 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Enviar foto da equipe", description = "Upload multipart da foto (campo file).")
     @PostMapping(
             value = "/{id}/foto",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public EquipeResponseDTO uploadFoto(
-            @PathVariable String id,
-            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String id,
+            @Parameter(description = "Arquivo de imagem (PNG/JPG)") @RequestParam("file") MultipartFile file,
             Authentication auth
     ) throws Exception {
 
@@ -479,9 +504,10 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Remover foto da equipe", description = "Apaga a foto atual.")
     @DeleteMapping("/{id}/foto")
     public EquipeResponseDTO removerFoto(
-            @PathVariable String id,
+            @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -502,13 +528,14 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Enviar banner da equipe", description = "Upload multipart do banner (campo file).")
     @PostMapping(
             value = "/{id}/banner",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public EquipeResponseDTO uploadBanner(
-            @PathVariable String id,
-            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String id,
+            @Parameter(description = "Arquivo de imagem (PNG/JPG)") @RequestParam("file") MultipartFile file,
             Authentication auth
     ) throws Exception {
 
@@ -543,9 +570,10 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Remover banner da equipe", description = "Apaga o banner atual.")
     @DeleteMapping("/{id}/banner")
     public EquipeResponseDTO removerBanner(
-            @PathVariable String id,
+            @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -566,9 +594,10 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Excluir equipe", description = "Remove a equipe; os técnicos voltam a ser CLIENTE e os convites pendentes são cancelados.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletar(
-            @PathVariable String id,
+            @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -585,9 +614,11 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Definir função do integrante", description = "Texto exibido para o integrante na página da equipe (ex.: Pintora). Corpo vazio limpa a função.")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Função do integrante (texto JSON)", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = "\"Pintora\"")))
     @PutMapping("/minha/integrantes/{usuarioId}/funcao-visual")
     public UserResponseDTO atualizarFuncaoVisual(
-            @PathVariable String usuarioId,
+            @Parameter(description = "ID do usuário", example = "6704a1c2e4b0f81a2c3d4e02") @PathVariable String usuarioId,
             @RequestBody(required = false) String corpo,
             Authentication auth
     ) {

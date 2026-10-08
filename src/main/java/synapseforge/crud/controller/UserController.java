@@ -1,5 +1,12 @@
 package synapseforge.crud.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +24,7 @@ import synapseforge.crud.service.UserService;
 import java.util.List;
 import java.util.Map;
 
+@Tag(name = "Usuários", description = "Perfil do usuário logado, busca de clientes e gestão de usuários.")
 @RestController
 @RequestMapping("/users")
 public class UserController {
@@ -30,6 +38,7 @@ public class UserController {
     // =========================================================
 
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Criar usuário (admin)", description = "Cria um usuário com qualquer papel.")
     @PostMapping
     public UserResponseDTO criar(
             @RequestBody @Valid UserRequestDTO dto
@@ -48,6 +57,7 @@ public class UserController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
+    @Operation(summary = "Listar usuários", description = "Lista os usuários visíveis para o usuário logado.")
     @GetMapping
     public List<UserResponseDTO> listar(
             Authentication auth
@@ -68,6 +78,7 @@ public class UserController {
     //
 
     @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
+    @Operation(summary = "Listar clientes", description = "Clientes que podem ser vinculados a pedidos (dados mínimos).")
     @GetMapping("/clientes")
     public List<ClienteResumoDTO> listarClientes(
             Authentication auth
@@ -89,9 +100,10 @@ public class UserController {
     //
 
     @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
+    @Operation(summary = "Buscar cliente por e-mail", description = "Busca exata por e-mail, para vincular um cliente novo a um pedido.")
     @GetMapping("/clientes/buscar")
     public ResponseEntity<ClienteResumoDTO> buscarClientePorEmail(
-            @RequestParam String email,
+            @Parameter(description = "E-mail exato do cliente", example = "mariana.costa@email.com") @RequestParam String email,
             Authentication auth
     ) {
 
@@ -112,6 +124,7 @@ public class UserController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')")
+    @Operation(summary = "Meu perfil", description = "Dados do usuário logado.")
     @GetMapping("/me")
     public UserResponseDTO meuPerfil(
             Authentication auth
@@ -137,6 +150,7 @@ public class UserController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('CLIENTE', 'TECNICO', 'GERENTE', 'ADMIN')")
+    @Operation(summary = "Editar meu perfil", description = "Atualiza nome, CPF e telefone; para trocar a senha, envie senhaAtual e senha.")
     @PutMapping("/me")
     public UserResponseDTO atualizarMeuPerfil(
             @RequestBody PerfilUpdateRequestDTO dto,
@@ -163,9 +177,10 @@ public class UserController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
+    @Operation(summary = "Buscar usuário", description = "Retorna um usuário pelo ID.")
     @GetMapping("/{id}")
     public UserResponseDTO buscar(
-            @PathVariable String id,
+            @Parameter(description = "ID do usuário", example = "6704a1c2e4b0f81a2c3d4e02") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -192,9 +207,10 @@ public class UserController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Editar usuário", description = "Atualiza dados de um usuário.")
     @PutMapping("/{id}")
     public UserResponseDTO atualizar(
-            @PathVariable String id,
+            @Parameter(description = "ID do usuário", example = "6704a1c2e4b0f81a2c3d4e02") @PathVariable String id,
             @RequestBody UserRequestDTO dto,
             Authentication auth
     ) {
@@ -218,9 +234,10 @@ public class UserController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
+    @Operation(summary = "Excluir usuário", description = "Remove um usuário.")
     @DeleteMapping("/{id}")
     public void deletar(
-            @PathVariable String id,
+            @Parameter(description = "ID do usuário", example = "6704a1c2e4b0f81a2c3d4e02") @PathVariable String id,
             Authentication auth
     ) {
 
@@ -234,6 +251,7 @@ public class UserController {
     // =========================================================
 
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Criar usuários em lote (admin)", description = "Cadastra vários usuários de uma vez.")
     @PostMapping("/batch")
     public List<UserResponseDTO> criarVarios(
             @RequestBody @Valid List<UserRequestDTO> dtos
@@ -258,9 +276,10 @@ public class UserController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
+    @Operation(summary = "Buscar usuários por nome", description = "Busca por trecho do nome, sem diferenciar maiúsculas.")
     @GetMapping("/search")
     public List<UserResponseDTO> buscarPorNome(
-            @RequestParam String nome,
+            @Parameter(description = "Trecho do nome a buscar", example = "Mariana") @RequestParam String nome,
             Authentication auth
     ) {
 
@@ -275,9 +294,11 @@ public class UserController {
     // SOLICITAR MUDANÇA DE EMAIL
     // =========================================================
 
+    @Operation(summary = "Solicitar troca de e-mail", description = "Envia um link de confirmação para o novo e-mail; a troca só vale após confirmar. Só o próprio usuário pode pedir.")
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "Novo e-mail", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = "{\"novoEmail\": \"mariana.nova@email.com\"}")))
     @PostMapping("/{id}/solicitar-mudanca-email")
     public Map<String, String> solicitarMudancaEmail(
-            @PathVariable String id,
+            @Parameter(description = "ID do usuário", example = "6704a1c2e4b0f81a2c3d4e02") @PathVariable String id,
             @RequestBody Map<String, String> body,
             Authentication auth
     ) {
@@ -295,9 +316,11 @@ public class UserController {
     // CONFIRMAR MUDANÇA DE EMAIL
     // =========================================================
 
+    @Operation(summary = "Confirmar troca de e-mail", description = "Rota pública do link enviado ao novo e-mail.")
+    @ApiResponse(responseCode = "200", description = "Troca de e-mail concluída", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = "{\"mensagem\": \"Email alterado com sucesso!\"}")))
     @GetMapping("/confirmar-mudanca-email/{token}")
     public Map<String, String> confirmarMudancaEmail(
-            @PathVariable String token
+            @Parameter(description = "Token recebido por e-mail", example = "3f9c2b7e-8a41-4d2e-9b6f-1c5d7e8a9b0c") @PathVariable String token
     ) {
 
         service.confirmarMudancaEmail(token);
