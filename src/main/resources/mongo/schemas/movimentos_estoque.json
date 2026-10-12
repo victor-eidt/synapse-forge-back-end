@@ -1,0 +1,120 @@
+{
+  "bsonType": "object",
+  "title": "Movimento de estoque",
+  "description": "Validação da coleção movimentos_estoque. Campos extras (ex.: _class do Spring) são permitidos.",
+  "required": [
+    "equipeId",
+    "tipoInsumo",
+    "insumoId",
+    "tipo",
+    "quantidade",
+    "unidade",
+    "saldoApos",
+    "criadoEm",
+    "chaveIdempotencia"
+  ],
+  "properties": {
+    "equipeId": {
+      "bsonType": "string",
+      "description": "Equipe dona do movimento",
+      "minLength": 1
+    },
+    "tipoInsumo": {
+      "enum": [
+        "MATERIAL",
+        "COR"
+      ],
+      "description": "Tipo do insumo (TipoInsumo)"
+    },
+    "insumoId": {
+      "bsonType": "string",
+      "description": "Material ou cor movimentado",
+      "minLength": 1
+    },
+    "tipo": {
+      "enum": [
+        "ENTRADA",
+        "BAIXA",
+        "ESTORNO",
+        "AJUSTE"
+      ],
+      "description": "Tipo do movimento (TipoMovimento)"
+    },
+    "quantidade": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Quantidade na unidade base (AJUSTE pode ser negativo)"
+    },
+    "unidade": {
+      "enum": [
+        "G",
+        "KG",
+        "ML",
+        "L",
+        "UN"
+      ],
+      "description": "Unidade base (UnidadeMedida)"
+    },
+    "saldoApos": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Saldo do insumo depois do movimento: nunca negativo",
+      "minimum": 0
+    },
+    "custoUnitario": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Custo unitário do insumo no momento do movimento",
+      "minimum": 0
+    },
+    "custoTotal": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Custo do movimento (acompanha o sinal da quantidade)"
+    },
+    "pedidoId": {
+      "bsonType": "string",
+      "description": "Pedido que gerou a baixa/estorno"
+    },
+    "etapaOrigem": {
+      "enum": [
+        "MODELAGEM",
+        "IMPRESSAO",
+        "PINTURA",
+        "ACABAMENTO",
+        "FINALIZADO",
+        "CANCELADO"
+      ],
+      "description": "Etapa do pedido que gerou o movimento (StatusPedido)"
+    },
+    "motivo": {
+      "bsonType": "string",
+      "description": "Motivo informado"
+    },
+    "usuarioId": {
+      "bsonType": "string",
+      "description": "Usuário que fez o movimento"
+    },
+    "criadoEm": {
+      "bsonType": "date",
+      "description": "Data do movimento"
+    },
+    "chaveIdempotencia": {
+      "bsonType": "string",
+      "description": "Chave única que impede baixa duplicada",
+      "minLength": 1
+    }
+  }
+}

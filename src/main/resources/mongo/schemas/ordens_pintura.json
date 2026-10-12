@@ -1,0 +1,78 @@
+{
+  "bsonType": "object",
+  "title": "Ordem de pintura",
+  "description": "Validação da coleção ordens_pintura. Campos extras (ex.: _class do Spring) são permitidos.",
+  "required": [
+    "equipeId",
+    "usuarioId",
+    "pedidoId",
+    "corId",
+    "tecnicoId",
+    "prioridade",
+    "prazo",
+    "etapa",
+    "criadoEm"
+  ],
+  "properties": {
+    "equipeId": {
+      "bsonType": "string",
+      "description": "Equipe dona da ordem",
+      "minLength": 1
+    },
+    "usuarioId": {
+      "bsonType": "string",
+      "description": "Usuário que criou a ordem",
+      "minLength": 1
+    },
+    "pedidoId": {
+      "bsonType": "string",
+      "description": "Pedido a ser pintado",
+      "minLength": 1
+    },
+    "corId": {
+      "bsonType": "string",
+      "description": "Cor usada na pintura",
+      "minLength": 1
+    },
+    "tecnicoId": {
+      "bsonType": "string",
+      "description": "Técnico responsável",
+      "minLength": 1
+    },
+    "tecnico": {
+      "bsonType": "string",
+      "description": "Nome do técnico (cópia para exibição)"
+    },
+    "prioridade": {
+      "enum": [
+        "BAIXA",
+        "MEDIA",
+        "ALTA"
+      ],
+      "description": "Prioridade (PrioridadeOrdemPintura)"
+    },
+    "prazo": {
+      "bsonType": "date",
+      "description": "Data limite da pintura"
+    },
+    "etapa": {
+      "enum": [
+        "AGUARDANDO",
+        "MISTURANDO_TINTA",
+        "EM_PINTURA",
+        "SECANDO",
+        "FINALIZADO",
+        "RETRABALHO"
+      ],
+      "description": "Coluna do kanban (EtapaOrdemPintura)"
+    },
+    "criadoEm": {
+      "bsonType": "date",
+      "description": "Data de criação"
+    },
+    "atualizadoEm": {
+      "bsonType": "date",
+      "description": "Data da última alteração"
+    }
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "bsonType": "object",
+  "title": "Orçamento",
+  "description": "Validação da coleção orcamentos. Campos extras (ex.: _class do Spring) são permitidos.",
+  "required": [
+    "equipeId",
+    "usuarioId",
+    "materialId",
+    "cliente",
+    "projeto",
+    "prazo",
+    "status",
+    "volumeCm3",
+    "criadoEm"
+  ],
+  "properties": {
+    "equipeId": {
+      "bsonType": "string",
+      "description": "Equipe dona do orçamento",
+      "minLength": 1
+    },
+    "usuarioId": {
+      "bsonType": "string",
+      "description": "Usuário que criou o orçamento",
+      "minLength": 1
+    },
+    "materialId": {
+      "bsonType": "string",
+      "description": "Material usado no cálculo",
+      "minLength": 1
+    },
+    "cliente": {
+      "bsonType": "string",
+      "description": "Nome do cliente",
+      "minLength": 1
+    },
+    "projeto": {
+      "bsonType": "string",
+      "description": "Nome do projeto",
+      "minLength": 1
+    },
+    "descricao": {
+      "bsonType": "string",
+      "description": "Descrição livre"
+    },
+    "prazo": {
+      "bsonType": "date",
+      "description": "Data de entrega prevista"
+    },
+    "status": {
+      "enum": [
+        "PENDENTE",
+        "APROVADO",
+        "REJEITADO"
+      ],
+      "description": "Situação do orçamento (StatusOrcamento)"
+    },
+    "pedidoId": {
+      "bsonType": "string",
+      "description": "Pedido gerado quando o orçamento é aprovado"
+    },
+    "volumeCm3": {
+      "bsonType": "number",
+      "minimum": 0,
+      "description": "Volume da peça em cm³ (maior que zero)",
+      "exclusiveMinimum": true
+    },
+    "tempoImpressaoHoras": {
+      "bsonType": "number",
+      "minimum": 0,
+      "description": "Tempo de impressão em horas (não negativo)"
+    },
+    "tempoMaoDeObraHoras": {
+      "bsonType": "number",
+      "minimum": 0,
+      "description": "Tempo de mão de obra em horas (não negativo)"
+    },
+    "custoMaquinaHora": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Custo da máquina por hora (não negativo)",
+      "minimum": 0
+    },
+    "custoMaoDeObraHora": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Custo da mão de obra por hora (não negativo)",
+      "minimum": 0
+    },
+    "margemLucro": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Margem de lucro (não negativa)",
+      "minimum": 0
+    },
+    "custoMaterial": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Custo do material (não negativo)",
+      "minimum": 0
+    },
+    "custoMaquina": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Custo de máquina (não negativo)",
+      "minimum": 0
+    },
+    "custoMaoDeObra": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Custo de mão de obra (não negativo)",
+      "minimum": 0
+    },
+    "custoTotal": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Custo total (não negativo)",
+      "minimum": 0
+    },
+    "precoFinal": {
+      "bsonType": [
+        "string",
+        "decimal"
+      ],
+      "pattern": "^[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$",
+      "description": "Preço final (não negativo)",
+      "minimum": 0
+    },
+    "criadoEm": {
+      "bsonType": "date",
+      "description": "Data de criação"
+    },
+    "objeto3DFileId": {
+      "bsonType": "string",
+      "description": "Id do arquivo 3D no GridFS"
+    },
+    "imagensReferenciaFileIds": {
+      "bsonType": "array",
+      "items": {
+        "bsonType": "string"
+      },
+      "description": "Ids das imagens de referência no GridFS"
+    }
+  }
+}
