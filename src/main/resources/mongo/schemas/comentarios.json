@@ -1,0 +1,32 @@
+{
+  "bsonType": "object",
+  "title": "Comentário",
+  "description": "Validação da coleção comentarios. Campos extras (ex.: _class do Spring) são permitidos.",
+  "required": [
+    "pedidoId",
+    "usuarioId",
+    "conteudo",
+    "criadoEm"
+  ],
+  "properties": {
+    "pedidoId": {
+      "bsonType": "string",
+      "description": "Pedido comentado",
+      "minLength": 1
+    },
+    "usuarioId": {
+      "bsonType": "string",
+      "description": "Autor do comentário",
+      "minLength": 1
+    },
+    "conteudo": {
+      "bsonType": "string",
+      "description": "Texto do comentário",
+      "minLength": 1
+    },
+    "criadoEm": {
+      "bsonType": "date",
+      "description": "Data do comentário"
+    }
+  }
+}
