@@ -15,15 +15,19 @@ import org.springdoc.webmvc.ui.SwaggerConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import synapseforge.crud.infrastructure.repository.UserRepository;
 import synapseforge.crud.infrastructure.security.JwtFilter;
 import synapseforge.crud.infrastructure.security.JwtService;
 
 // Garante que a documentação fica acessível sem token e que o resto da API continua protegido.
 @WebMvcTest(controllers = OpenApiConfig.class)
 @Import({SecurityConfig.class, CorsConfig.class, JwtFilter.class, JwtService.class, OpenApiConfig.class})
+@TestPropertySource(properties = "app.jwt.secret=c2VncmVkby1kZS10ZXN0ZS1jb20tMzItYnl0ZXMhISE=")
 @ImportAutoConfiguration({
         SpringDocConfiguration.class,
         SpringDocConfigProperties.class,
@@ -37,6 +41,10 @@ class OpenApiSecurityTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // O JwtFilter consulta o usuário a cada requisição
+    @MockBean
+    private UserRepository userRepository;
 
     @Test
     void apiDocs_devemSerPublicosEDeclararAutenticacaoJwt() throws Exception {
