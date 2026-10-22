@@ -13,6 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import synapseforge.crud.infrastructure.security.JwtFilter;
+import synapseforge.crud.infrastructure.security.RateLimitFilter;
 
 @Configuration
 @EnableMethodSecurity
@@ -170,6 +171,12 @@ public class SecurityConfig {
                 .addFilterBefore(
                         jwtFilter,
                         UsernamePasswordAuthenticationFilter.class
+                )
+
+                // Limite de tentativas por IP nas rotas públicas de autenticação.
+                .addFilterBefore(
+                        new RateLimitFilter(),
+                        JwtFilter.class
                 );
 
         return http.build();

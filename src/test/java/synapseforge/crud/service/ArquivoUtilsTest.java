@@ -21,12 +21,22 @@ class ArquivoUtilsTest {
     }
 
     @Test
-    void deveUsarMetadadoQuandoFormatoNaoForInferido() {
-        Document metadata = new Document("contentType", "application/x-custom");
-        assertEquals("application/x-custom", tipo("arquivo.semextensao", metadata));
+    void deveUsarMetadadoQuandoForTipoPermitido() {
+        Document metadata = new Document("contentType", "image/webp");
+        assertEquals("image/webp", tipo("arquivo.semextensao", metadata));
 
-        Document fallback = new Document("_contentType", "text/plain");
-        assertEquals("text/plain", tipo(null, fallback));
+        Document fallback = new Document("_contentType", "IMAGE/PNG; charset=binary");
+        assertEquals("image/png", tipo(null, fallback));
+    }
+
+    @Test
+    void naoServeTipoQuePodeExecutarScriptNoNavegador() {
+        // O tipo vem do cliente no upload: HTML/SVG servido pela API seria XSS
+        assertEquals("application/octet-stream", tipo("pagina.html", new Document("contentType", "text/html")));
+        assertEquals("application/octet-stream", tipo("foto.svg", new Document("contentType", "image/svg+xml")));
+        assertEquals("application/octet-stream", tipo("arquivo.semextensao", new Document("contentType", "application/x-custom")));
+        // Metadado fora da lista, mas extensão conhecida: vale a extensão
+        assertEquals("image/png", tipo("foto.png", new Document("contentType", "text/html")));
     }
 
     @Test
