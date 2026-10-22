@@ -556,7 +556,7 @@ public class PedidoController {
             @Parameter(description = "Custo total, em R$", example = "111.97") @RequestParam(value = "custoTotal", required = false) BigDecimal custoTotal,
             @Parameter(description = "Preço final, em R$", example = "145.56") @RequestParam(value = "precoFinal", required = false) BigDecimal precoFinal,
 
-            @Parameter(description = "Filtra pela etapa de produção", example = "IMPRESSAO") @RequestParam(
+            @Parameter(description = "Ignorado: a etapa só muda por /status, /status/regredir e /cancelar") @RequestParam(
                     value = "status",
                     required = false
             )

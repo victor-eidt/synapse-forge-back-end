@@ -50,7 +50,7 @@ public class AdminController {
         return adminService.buscarUsuario(id);
     }
 
-    @Operation(summary = "Editar usuário", description = "Atualiza só os campos enviados (os nulos são mantidos). Permite trocar papel, equipe, ativar/desativar e redefinir a senha.")
+    @Operation(summary = "Editar usuário", description = "Atualiza só os campos enviados (os nulos são mantidos). Permite trocar papel, equipe e ativar/desativar. A senha não é alterada por aqui.")
     @PutMapping("/usuarios/{id}")
     public AdminUserResponseDTO atualizarUsuario(
             @Parameter(description = "ID do registro", example = "6704a1c2e4b0f81a2c3d4e02") @PathVariable String id,
@@ -107,7 +107,7 @@ public class AdminController {
     }
 
 
-    @Operation(summary = "Excluir pedido", description = "Remove o pedido e seus arquivos.")
+    @Operation(summary = "Excluir pedido", description = "Remove o pedido.")
     @DeleteMapping("/pedidos/{id}")
     public void deletarPedido(
             @Parameter(description = "ID do registro", example = "6704a1c2e4b0f81a2c3d4e02") @PathVariable String id

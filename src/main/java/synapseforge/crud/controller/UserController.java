@@ -78,7 +78,7 @@ public class UserController {
     //
 
     @PreAuthorize("hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')")
-    @Operation(summary = "Listar clientes", description = "Clientes que podem ser vinculados a pedidos (dados mínimos).")
+    @Operation(summary = "Listar clientes", description = "Clientes que já têm pedido na equipe (dados mínimos). Cliente novo é achado por /users/clientes/buscar.")
     @GetMapping("/clientes")
     public List<ClienteResumoDTO> listarClientes(
             Authentication auth

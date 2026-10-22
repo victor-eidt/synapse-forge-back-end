@@ -10,8 +10,8 @@ import lombok.Setter;
 @Schema(description = "Credenciais de login")
 public class LoginDTO {
 
-    @Schema(description = "E-mail cadastrado", example = "gerente@teste.com")
+    @Schema(description = "E-mail cadastrado", example = "mariana.costa@email.com")
     private String email;
-    @Schema(description = "Senha", example = "1234")
+    @Schema(description = "Senha", example = "Senha@2026")
     private String senha;
 }

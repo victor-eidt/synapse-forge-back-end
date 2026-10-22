@@ -61,6 +61,6 @@ public class PedidoRequestDTO {
     @Schema(description = "Data de entrega (yyyy-MM-dd)", example = "2026-10-20")
     private LocalDate prazo;
 
-    @Schema(description = "Etapa inicial; ignorada na edição (use os endpoints de status)", example = "MODELAGEM")
+    @Schema(description = "Ignorado: todo pedido nasce em MODELAGEM e a etapa só muda pelos endpoints de status", example = "MODELAGEM")
     private StatusPedido status;
 }

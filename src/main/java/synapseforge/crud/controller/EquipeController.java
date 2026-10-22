@@ -178,7 +178,7 @@ public class EquipeController {
     // =========================================================
 
     @PreAuthorize("hasAnyRole('GERENTE', 'ADMIN')")
-    @Operation(summary = "Convidar usuário", description = "Envia um convite por e-mail para o usuário (cliente) entrar na equipe como técnico. O convite expira em 7 dias.")
+    @Operation(summary = "Convidar usuário", description = "Envia um convite por e-mail para o usuário (cliente) entrar na equipe como técnico. O convite expira em 24 horas.")
     @PostMapping("/{equipeId}/convites/{usuarioId}")
     public ConviteEquipeResponseDTO criarConvite(
             @Parameter(description = "ID da equipe", example = "6704a1c2e4b0f81a2c3d4e06") @PathVariable String equipeId,

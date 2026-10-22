@@ -46,7 +46,7 @@ public class EstoqueController {
                 dto.getUnidade(), dto.getMotivo(), usuarioId);
     }
 
-    @Operation(summary = "Insumos em alerta", description = "Lista materiais e tintas com saldo abaixo do mínimo.")
+    @Operation(summary = "Insumos em alerta", description = "Lista materiais e tintas com saldo no mínimo ou abaixo dele.")
     @GetMapping("/alertas")
     public List<AlertaEstoqueResponseDTO> listarEmAlerta(Authentication auth) {
         return service.listarEmAlerta((String) auth.getPrincipal());

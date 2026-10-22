@@ -27,6 +27,6 @@ public class AdminUserUpdateRequestDTO {
     private String funcaoVisual;
     @Schema(description = "Conta ativa; false significa desativada pelo admin", example = "true")
     private Boolean ativo;
-    @Schema(description = "Nova senha (opcional)", example = "NovaSenha@2026")
+    @Schema(hidden = true) // troca de senha pelo admin ainda não existe: qualquer valor devolve 400
     private String senha;
 }

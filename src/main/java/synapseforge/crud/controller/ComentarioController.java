@@ -17,7 +17,7 @@ import synapseforge.crud.service.ComentarioService;
 
 import java.util.List;
 
-@Tag(name = "Comentários", description = "Comentários da equipe e do cliente dentro de um pedido.")
+@Tag(name = "Comentários", description = "Comentários internos da equipe (técnico e gerente) dentro de um pedido.")
 @RestController
 @RequestMapping("/pedidos/{pedidoId}/comentarios")
 @RequiredArgsConstructor

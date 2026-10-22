@@ -26,6 +26,6 @@ public class SaldoInsumoResponseDTO {
     private BigDecimal saldo;
     @Schema(description = "Estoque mínimo; abaixo disso o insumo entra em alerta", example = "500")
     private BigDecimal estoqueMinimo;
-    @Schema(description = "Indica se o saldo está abaixo do mínimo", example = "false")
+    @Schema(description = "Indica se o saldo chegou ao mínimo ou ficou abaixo dele", example = "false")
     private Boolean emAlerta;
 }

@@ -6,11 +6,8 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
-import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.util.List;
 
 @Configuration
 public class OpenApiConfig {
@@ -22,7 +19,7 @@ public class OpenApiConfig {
             estoque de insumos, agenda, equipes e notificações.
 
             ### Como autenticar
-            1. Faça login em `POST /auth/login` (ex.: `gerente@teste.com` / `1234`, criados pelo seed de desenvolvimento).
+            1. Faça login em `POST /auth/login` com um usuário cadastrado e com o e-mail confirmado.
             2. Copie o `access_token` da resposta.
             3. Clique em **Authorize** e cole o token. As demais rotas passam a enviar o cabeçalho `Authorization: Bearer <token>`.
 
@@ -35,10 +32,12 @@ public class OpenApiConfig {
             Os dados são isolados por equipe: técnico e gerente só enxergam registros da própria oficina.
 
             ### Códigos de resposta
-            - **400**: regra de negócio ou validação (a mensagem explica o motivo).
+            - **400**: regra de negócio ou validação (a mensagem explica o motivo). Registro inexistente
+              ou de outra equipe também costuma voltar 400.
             - **401**: token ausente, inválido ou expirado.
             - **403**: papel sem permissão, ou usuário sem equipe.
-            - **404**: recurso não encontrado.
+            - **404**: recurso não encontrado (comentários, notificações e arquivos).
+            - **422**: estoque insuficiente para avançar a etapa ou ajustar o saldo.
             """;
 
     @Bean
@@ -53,9 +52,6 @@ public class OpenApiConfig {
                         .contact(new Contact()
                                 .name("Equipe Synapse Forge")
                                 .url("https://github.com/victor-eidt/synapse-forge-back-end")))
-                .servers(List.of(new Server()
-                        .url("http://localhost:8081")
-                        .description("Ambiente local de desenvolvimento")))
                 .addSecurityItem(new SecurityRequirement().addList(securitySchemeName))
                 .components(new Components()
                         .addSecuritySchemes(securitySchemeName,

@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 
 @Getter
 @AllArgsConstructor
-@Schema(description = "Insumo com saldo abaixo do mínimo")
+@Schema(description = "Insumo com saldo no mínimo ou abaixo dele")
 public class AlertaEstoqueResponseDTO {
 
     @Schema(description = "Tipo do insumo: MATERIAL (filamento/resina) ou COR (tinta)", example = "MATERIAL")
