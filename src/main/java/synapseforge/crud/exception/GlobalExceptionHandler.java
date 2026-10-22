@@ -2,6 +2,8 @@ package synapseforge.crud.exception;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.mongodb.MongoServerException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -19,6 +21,22 @@ public class GlobalExceptionHandler {
     public String handleRuntimeException(RuntimeException ex) {
         logger.error("Bad Request - RuntimeException: {}", ex.getMessage(), ex);
         return ex.getMessage();
+    }
+
+    // Código 121 do MongoDB = DocumentValidationFailure: o documento violou o JSON Schema da coleção.
+    // Não devolve a mensagem do Mongo (expõe o documento); outras violações seguem como antes (400).
+    static final int CODIGO_VALIDACAO_SCHEMA = 121;
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<String> handleDataIntegrityViolationException(DataIntegrityViolationException ex) {
+        if (ex.getMostSpecificCause() instanceof MongoServerException mongo
+                && mongo.getCode() == CODIGO_VALIDACAO_SCHEMA) {
+            logger.error("Documento rejeitado pelo JSON Schema do MongoDB: {}", mongo.getMessage(), ex);
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                    .body("Os dados não respeitam as regras de validação do banco.");
+        }
+        logger.error("Bad Request - DataIntegrityViolation: {}", ex.getMessage(), ex);
+        return ResponseEntity.badRequest().body(ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -53,6 +71,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .header(SemEquipeException.CABECALHO_CODIGO, ex.getCodigo())
                 .body(ex.getMessage());
+    }
+
+    @ExceptionHandler(RecursoNaoEncontradoException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public String handleRecursoNaoEncontradoException(RecursoNaoEncontradoException ex) {
+        logger.warn("Not Found - RecursoNaoEncontradoException: {}", ex.getMessage());
+        return ex.getMessage();
     }
 
     // @PreAuthorize negado: sem isto caía no handler de RuntimeException e virava 400

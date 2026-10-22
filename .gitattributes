@@ -1,2 +1,9 @@
+# Fim de linha LF no repositório (quem usa Windows recebe CRLF só na cópia local, se quiser)
+* text=auto eol=lf
+
 /mvnw text eol=lf
 *.cmd text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jar binary

@@ -5,6 +5,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
 
 import java.util.Locale;
+import java.util.Set;
 
 public final class ArquivoUtils {
 
@@ -35,14 +36,36 @@ public final class ArquivoUtils {
         };
 
         // O metadata e gravado no upload; o nome do arquivo vem do cliente, entao so
-        // serve de fallback.
-        if (metadataContentType != null) {
-            return metadataContentType;
+        // serve de fallback. Os dois vem do cliente: fora da lista, o arquivo sai como
+        // octet-stream (um text/html ou image/svg+xml servido pela API seria XSS).
+        String permitido = permitido(metadataContentType);
+        if (permitido == null) {
+            permitido = permitido(inferredContentType);
         }
 
-        return inferredContentType == null
+        return permitido == null
                 ? MediaType.APPLICATION_OCTET_STREAM_VALUE
-                : inferredContentType;
+                : permitido;
+    }
+
+    private static final Set<String> TIPOS_PERMITIDOS = Set.of(
+            MediaType.IMAGE_JPEG_VALUE,
+            MediaType.IMAGE_PNG_VALUE,
+            MediaType.IMAGE_GIF_VALUE,
+            "image/webp",
+            "model/obj",
+            "model/stl",
+            "model/3mf",
+            MediaType.APPLICATION_PDF_VALUE
+    );
+
+    private static String permitido(String contentType) {
+        if (contentType == null) {
+            return null;
+        }
+        // "image/png; charset=..." -> "image/png"
+        String tipo = contentType.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+        return TIPOS_PERMITIDOS.contains(tipo) ? tipo : null;
     }
 
     private static String firstNonBlank(String first, String second) {

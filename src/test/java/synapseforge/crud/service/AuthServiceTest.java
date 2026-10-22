@@ -146,6 +146,7 @@ class AuthServiceTest {
         user.setEmail("ana@teste.com");
         user.setSenha("hash");
         user.setEmailConfirmado(true);
+        user.setAtivo(true);
         user.setTentativasLogin(0);
         user.setRole(Role.CLIENTE);
 
@@ -157,6 +158,29 @@ class AuthServiceTest {
 
         assertEquals("jwt-token", result.get("access_token"));
         assertEquals("u-1", result.get("user_id"));
+    }
+
+    @Test
+    void loginDeContaDesativadaERecusadoSemGerarToken() {
+        LoginDTO dto = new LoginDTO();
+        dto.setEmail("ana@teste.com");
+        dto.setSenha("123456");
+
+        User user = new User();
+        user.setId("u-1");
+        user.setEmail("ana@teste.com");
+        user.setSenha("hash");
+        user.setEmailConfirmado(true);
+        user.setAtivo(false);
+        user.setRole(Role.CLIENTE);
+
+        when(repository.buscarPorEmail("ana@teste.com")).thenReturn(Optional.of(user));
+        when(encoder.matches("123456", "hash")).thenReturn(true);
+
+        RuntimeException erro = assertThrows(RuntimeException.class, () -> service.login(dto));
+
+        assertEquals("CONTA_DESATIVADA", erro.getMessage());
+        verifyNoInteractions(jwtService);
     }
 
     @Test
