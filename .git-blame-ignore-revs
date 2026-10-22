@@ -1,0 +1,5 @@
+# Commits que o git blame (e o GitHub) devem pular: só mudam fim de linha.
+# Local: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# SYN-160: renormalização CRLF -> LF
+ec664daf38b3f3e1c7bb460268ac1ea768667c87

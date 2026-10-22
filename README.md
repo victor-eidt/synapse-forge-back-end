@@ -52,17 +52,26 @@ Credenciais ficam em `src/main/resources/application-secrets.properties` (ignora
 cp src/main/resources/application-secrets.properties.example src/main/resources/application-secrets.properties
 ```
 
+O segredo do JWT é obrigatório: sem ele a aplicação não sobe. Gere um valor e coloque em `app.jwt.secret` nesse arquivo (ou na variável `APP_JWT_SECRET`):
+
+```bash
+openssl rand -base64 32
+```
+
 ### Variáveis de ambiente
 
 | Variável | Padrão | Uso |
 |---|---|---|
+| `APP_JWT_SECRET` | nenhum (obrigatória) | Segredo de assinatura dos tokens, em Base64 com pelo menos 32 bytes. Trocar o valor desloga todo mundo |
 | `APP_URL` | `http://localhost:5173` | URL do front usada nos links de email |
 | `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Origens liberadas no CORS |
 | `APP_ADMIN_EMAILS` | vazio | Emails autorizados a usar `/admin/**` |
 | `APP_SWAGGER_ENABLED` | `true` | Liga/desliga o Swagger UI e o `/v3/api-docs` |
 | `APP_SEED_ENABLED` | `true` | Liga/desliga a criação dos dados de teste |
+| `APP_MONGO_SCHEMA_VALIDATION_ENABLED` | `true` | Aplica o `$jsonSchema` nas coleções na subida |
+| `APP_MONGO_SCHEMA_VALIDATION_ACTION` | `error` | `error` recusa documento inválido; `warn` só registra no log do MongoDB |
 
-> Em produção, use `APP_SWAGGER_ENABLED=false` e `APP_SEED_ENABLED=false`.
+> Em produção, use `APP_SWAGGER_ENABLED=false` e `APP_SEED_ENABLED=false`. O usuário do MongoDB precisa do privilégio `collMod` para aplicar o JSON Schema em coleções que já existem (o papel `readWrite` não tem); sem ele a aplicação sobe e só registra um aviso.
 
 ---
 
@@ -90,11 +99,14 @@ O backend possui autenticação baseada em JWT e controle de acesso por perfil d
 
 ### Recursos de segurança
 
-- autenticação via login
+- autenticação via login, com token JWT de 1 hora assinado com `APP_JWT_SECRET`
+- papel e situação do usuário lidos do cadastro a cada requisição: conta apagada, desativada ou rebaixada perde o acesso na hora
 - confirmação de email
 - recuperação e redefinição de senha
+- bloqueio de 15 minutos na conta depois de 5 senhas erradas
+- limite de tentativas por IP em login, cadastros e recuperação de senha (429 com `Retry-After`)
 - controle de acesso por rota e permissão
-- proteção de endpoints sensíveis com JWT
+- arquivos enviados só são servidos com tipos de uma lista fixa (imagens, modelos 3D e PDF)
 
 ---
 
