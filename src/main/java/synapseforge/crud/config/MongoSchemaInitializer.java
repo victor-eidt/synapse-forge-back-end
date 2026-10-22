@@ -10,8 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Component;
@@ -29,10 +27,8 @@ import org.springframework.stereotype.Component;
  * <p>
  * validationLevel=moderate: documentos antigos que já estavam fora do padrão não travam
  * atualizações; tudo que é novo (ou que já era válido) passa a ser validado.
- * Roda por último para que migrações do {@link DataInitializer} aconteçam antes.
  */
 @Component
-@Order(Ordered.LOWEST_PRECEDENCE)
 public class MongoSchemaInitializer implements CommandLineRunner {
 
     static final List<String> COLECOES_VALIDADAS = List.of(
@@ -53,6 +49,10 @@ public class MongoSchemaInitializer implements CommandLineRunner {
             MongoTemplate mongoTemplate,
             @Value("${app.mongo.schema-validation.enabled:true}") boolean habilitado,
             @Value("${app.mongo.schema-validation.action:error}") String acao) {
+        if (!"error".equals(acao) && !"warn".equals(acao)) {
+            throw new IllegalStateException(
+                    "app.mongo.schema-validation.action deve ser error ou warn (veio '" + acao + "')");
+        }
         this.mongoTemplate = mongoTemplate;
         this.habilitado = habilitado;
         this.acao = acao;
@@ -69,7 +69,9 @@ public class MongoSchemaInitializer implements CommandLineRunner {
                 aplicar(colecao, carregarSchema(colecao));
             } catch (Exception e) {
                 // não derruba a aplicação: sem o schema, a validação da API continua valendo
-                log.warn("Não foi possível aplicar o JSON Schema em '{}': {}", colecao, e.getMessage());
+                // coleção existente exige o privilégio collMod (o papel readWrite não tem)
+                log.warn("Não foi possível aplicar o JSON Schema em '{}' (o usuário do banco tem collMod?): {}",
+                        colecao, e.getMessage());
             }
         }
     }

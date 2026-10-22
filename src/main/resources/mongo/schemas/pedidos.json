@@ -5,7 +5,6 @@
   "required": [
     "equipeId",
     "usuarioId",
-    "cliente",
     "projeto",
     "status",
     "criadoEm"
@@ -27,8 +26,7 @@
     },
     "cliente": {
       "bsonType": "string",
-      "description": "Nome do cliente",
-      "minLength": 1
+      "description": "Nome do cliente; vazio quando o pedido não tem cliente vinculado"
     },
     "projeto": {
       "bsonType": "string",
