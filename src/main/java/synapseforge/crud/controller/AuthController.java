@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import synapseforge.crud.DTO.User.LoginDTO;
@@ -31,7 +31,7 @@ public class AuthController {
     @ApiResponse(responseCode = "200", description = "Conta criada; aguardando confirmação do e-mail", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = "{\"mensagem\": \"Conta criada! Verifique seu email para confirmar o acesso.\"}")))
     @PostMapping("/cadastro")
     public Map<String, String> cadastro(
-            @RequestBody UserRequestDTO dto
+            @RequestBody @Valid UserRequestDTO dto
     ) {
 
         return service.cadastro(dto);
@@ -45,7 +45,7 @@ public class AuthController {
     @ApiResponse(responseCode = "200", description = "Gerente e equipe criados; aguardando confirmação do e-mail", content = @Content(mediaType = "application/json", examples = @ExampleObject(value = "{\"mensagem\": \"Conta criada! Verifique seu email para confirmar o acesso.\"}")))
     @PostMapping("/cadastro-gerente")
     public Map<String, String> cadastroGerente(
-            @RequestBody UserRequestDTO dto
+            @RequestBody @Valid UserRequestDTO dto
     ) {
 
         return service.cadastroGerente(dto);

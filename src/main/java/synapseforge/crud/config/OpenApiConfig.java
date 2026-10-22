@@ -38,6 +38,7 @@ public class OpenApiConfig {
             - **403**: papel sem permissão, ou usuário sem equipe.
             - **404**: recurso não encontrado (comentários, notificações e arquivos).
             - **422**: estoque insuficiente para avançar a etapa ou ajustar o saldo.
+            - **429**: muitas tentativas seguidas no login, nos cadastros ou na recuperação de senha (veja `Retry-After`).
             """;
 
     @Bean

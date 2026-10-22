@@ -24,6 +24,7 @@ public class UserRequestDTO {
     private String email;
 
     @Schema(description = "Senha de acesso", example = "Senha@2026")
+    @NotBlank
     private String senha;
 
 
