@@ -1,5 +1,6 @@
 package synapseforge.crud.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import synapseforge.crud.DTO.User.LoginDTO;
@@ -21,7 +22,7 @@ public class AuthController {
 
     @PostMapping("/cadastro")
     public Map<String, String> cadastro(
-            @RequestBody UserRequestDTO dto
+            @RequestBody @Valid UserRequestDTO dto
     ) {
 
         return service.cadastro(dto);
@@ -33,7 +34,7 @@ public class AuthController {
 
     @PostMapping("/cadastro-gerente")
     public Map<String, String> cadastroGerente(
-            @RequestBody UserRequestDTO dto
+            @RequestBody @Valid UserRequestDTO dto
     ) {
 
         return service.cadastroGerente(dto);
