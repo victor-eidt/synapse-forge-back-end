@@ -125,11 +125,9 @@ public class EventoService {
 
     // userId é a agenda consultada; usuarioId é quem está logado (define a equipe)
     public List<Evento> buscarPorUserIdAndMesAno(String usuarioId, String userId, String mes, String ano) {
+        String mesAnoPattern = padraoMesAno(mes, ano);
         try {
             logger.info("Buscando eventos por userId ou participante: {}, mês: {}, ano: {}", userId, mes, ano);
-            // Dependendo do formato da data salva no banco, o pattern precisa ser ajustado.
-            // Exemplo assumindo formato "yyyy-MM-dd...":
-            String mesAnoPattern = String.format("^%s-%s-.*", ano, mes);
             List<Evento> eventos = equipeContexto.equipeDe(usuarioId)
                     .map(equipeId -> repository.findByEquipeIdAndUserIdOrParticipanteAndMesAno(
                             equipeId, userId, mesAnoPattern))
@@ -140,6 +138,21 @@ public class EventoService {
             logger.error("Erro ao buscar eventos por userId/participante e mes/ano: {}, {}/{}", userId, mes, ano, e);
             throw e;
         }
+    }
+
+    /**
+     * Prefixo "yyyy-MM-" da data (gravada como texto "yyyy-MM-dd"). Mês e ano entram num $regex,
+     * então só passam dígitos: senão o cliente mandaria a expressão que quisesse ao MongoDB.
+     */
+    static String padraoMesAno(String mes, String ano) {
+        if (mes == null || ano == null || !mes.matches("\\d{1,2}") || !ano.matches("\\d{4}")) {
+            throw new IllegalArgumentException("Mês ou ano inválido");
+        }
+        int numeroMes = Integer.parseInt(mes);
+        if (numeroMes < 1 || numeroMes > 12) {
+            throw new IllegalArgumentException("Mês ou ano inválido");
+        }
+        return String.format("^%s-%02d-", ano, numeroMes);
     }
 
     public Evento atualizar(String id, Evento eventoAtualizado, String usuarioId) {

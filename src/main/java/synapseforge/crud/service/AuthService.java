@@ -204,6 +204,14 @@ public class AuthService {
             );
         }
 
+        // Conta desativada pelo admin: o JwtFilter também recusa os tokens já emitidos.
+        if (!user.isAtivo()) {
+
+            throw new RuntimeException(
+                    "CONTA_DESATIVADA"
+            );
+        }
+
         user.setTentativasLogin(0);
         user.setBloqueadoEm(null);
 

@@ -14,3 +14,8 @@ spring.mail.properties.mail.smtp.starttls.enable=true
 app.url=${APP_URL:http://localhost:5173}
 app.mail.from=seu@gmail.com
 
+
+# JSON Schema ($jsonSchema) nas colecoes pedidos, orcamentos, ordens_pintura, movimentos_estoque e comentarios
+# action: error = rejeita documento invalido | warn = so registra no log do MongoDB
+app.mongo.schema-validation.enabled=${APP_MONGO_SCHEMA_VALIDATION_ENABLED:true}
+app.mongo.schema-validation.action=${APP_MONGO_SCHEMA_VALIDATION_ACTION:error}
