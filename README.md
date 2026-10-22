@@ -284,6 +284,115 @@ A lista completa, com parâmetros e modelos de requisição/resposta, está no S
 
 ---
 
+## 🧩 Modelagem do Sistema
+
+Esta seção apresenta os diagramas que representam as funcionalidades do Synapse Forge e os principais fluxos do sistema. A modelagem ajuda a entender as interações entre os usuários e a aplicação e a comunicação entre as camadas durante as operações.
+
+### 1. Diagrama de Casos de Uso
+
+O diagrama apresenta as funcionalidades do Synapse Forge e os atores que interagem com o sistema, de acordo com as permissões de cada perfil no back-end.
+
+- **Visitante**: quem ainda não entrou. Cria a conta (como cliente, ou como gerente junto com a loja) e recupera a senha.
+- **Usuário** (ator abstrato): o que todo usuário autenticado faz, isto é, entrar, gerenciar o perfil e consultar as notificações do sino.
+- **Cliente**: acompanha os próprios pedidos (de qualquer loja) e responde convites para entrar numa equipe.
+- **Técnico**: trabalha nos dados da própria equipe, como pedidos e etapas de produção, comentários, ordens de pintura, cores e misturas, materiais e estoque e agenda.
+- **Gerente**: é um técnico com mais permissões (generalização Gerente → Técnico). Aprova ou rejeita orçamentos, gerencia a equipe e os convites e emite a ordem de serviço em PDF.
+- **Admin**: painel de administração, com usuários (papel e ativação) e pedidos de todas as lojas.
+
+Cliente, Técnico e Admin são especializações de Usuário. O Gerente também é, por herdar do Técnico.
+
+![Diagrama de Casos de Uso](docs/synapse-forge-casos-de-uso.png)
+
+A fonte editável está em [`docs/synapse-forge-casos-de-uso.drawio`](docs/synapse-forge-casos-de-uso.drawio) (abre no [draw.io](https://app.diagrams.net)).
+
+### 2. Diagrama de Sequência: Criação de Pedido
+
+Só técnico, gerente e admin criam pedidos. O pedido pode chegar em JSON, quando não há arquivos, ou em `multipart/form-data`, com o modelo 3D e as imagens de referência.
+
+No caminho multipart, o controller valida o pedido **antes** de gravar os arquivos no GridFS (`prepararParaCriacao`), para que uma requisição recusada não deixe arquivo órfão. Em seguida, `criar` repete a validação: resolve a equipe do usuário logado (403 `SEM_EQUIPE` se ele não tiver equipe) e confere se o cliente informado é da equipe. Depois define o status inicial `MODELAGEM` e as datas e salva o pedido no MongoDB.
+
+```mermaid
+sequenceDiagram
+    actor Usuario as Técnico / Gerente
+    participant Front as Frontend
+    participant Controller as PedidoController
+    participant Service as PedidoService
+    participant GridFS
+    participant DB as MongoDB
+
+    Usuario->>Front: Preenche e envia o pedido
+    alt Sem arquivos (JSON)
+        Front->>Controller: POST /pedidos
+        Controller->>Service: toEntity(dto, usuarioId)
+    else Com arquivos (multipart/form-data)
+        Front->>Controller: POST /pedidos
+        Controller->>Service: toEntity(...)
+        Controller->>Service: prepararParaCriacao(pedido)
+        Note over Service: equipe do usuário e cliente da equipe
+        Controller->>GridFS: Grava modelo 3D e imagens
+        GridFS-->>Controller: Ids dos arquivos
+    end
+    Controller->>Service: criar(pedido)
+    Service->>Service: prepararParaCriacao(pedido)
+    Service->>Service: Status MODELAGEM, criadoEm e atualizadoEm
+    Service->>DB: save(pedido)
+    DB-->>Service: Pedido salvo
+    Service-->>Controller: Pedido
+    Controller-->>Front: PedidoResponseDTO
+    Front-->>Usuario: Pedido aparece na lista
+```
+
+### 3. Diagrama de Sequência: Edição de Pedido
+
+A edição existe em JSON (`PUT /pedidos/{id}`) e em `multipart/form-data`, quando há arquivo novo ou removido. O diagrama mostra o caminho multipart.
+
+Antes de gravar qualquer arquivo, `validarAtualizacao` busca o pedido para edição. Cliente não edita, o usuário precisa ter equipe e o pedido precisa ser da equipe dele. A mesma validação confere o cliente informado. Depois disso, os arquivos novos vão para o GridFS e `atualizarComArquivos` aplica os dados recebidos ao pedido (os campos são substituídos pelo que chegou, inclusive vazios) e salva. Os arquivos antigos que foram substituídos ou removidos só são apagados do GridFS depois que o pedido é salvo.
+
+A etapa de produção não muda por aqui: ela tem endpoints próprios (`/status`, `/status/regredir` e `/cancelar`).
+
+```mermaid
+sequenceDiagram
+    actor Usuario as Técnico / Gerente
+    participant Front as Frontend
+    participant Controller as PedidoController
+    participant Service as PedidoService
+    participant GridFS
+    participant DB as MongoDB
+
+    Usuario->>Front: Edita o pedido
+    Front->>Controller: PUT /pedidos/{id} (multipart/form-data)
+    Controller->>Service: toEntity(...)
+    Controller->>Service: validarAtualizacao(id, usuarioId, role, dados)
+    Service->>DB: Busca o pedido por id e equipe
+    DB-->>Service: Pedido
+    Note over Service: recusa CLIENTE, sem equipe ou pedido de outra equipe
+
+    opt Arquivos novos
+        Controller->>GridFS: Grava os arquivos novos
+        GridFS-->>Controller: Ids dos arquivos
+    end
+
+    Controller->>Service: atualizarComArquivos(id, usuarioId, role, dados, novos ids, remoções)
+    Service->>DB: Busca o pedido por id e equipe
+    Service->>Service: Aplica os dados e as referências de arquivo
+    Service->>DB: save(pedido)
+    DB-->>Service: Pedido atualizado
+
+    opt Arquivos substituídos ou removidos
+        Service->>GridFS: Apaga os arquivos antigos
+    end
+
+    Service-->>Controller: Pedido atualizado
+    Controller-->>Front: PedidoResponseDTO
+    Front-->>Usuario: Mostra os dados atualizados
+```
+
+### 4. Considerações sobre a Modelagem
+
+O diagrama de casos de uso dá a visão geral das funcionalidades e dos perfis, e os diagramas de sequência detalham a comunicação entre os componentes na criação e na edição de pedidos. Os diagramas precisam acompanhar o código: quando uma permissão ou um fluxo mudar, atualize o `.drawio` (e exporte o PNG em tema claro) e os diagramas desta seção.
+
+---
+
 ## 📝 Observações Finais
 
 Este backend foi pensado para funcionar em ambiente de desenvolvimento local, com dados de teste já pré-carregados para demonstrar o comportamento real da aplicação. Isso acelera a validação de fluxo de autenticação, equipe, pedidos e produção sem a necessidade de cadastrar tudo manualmente.
