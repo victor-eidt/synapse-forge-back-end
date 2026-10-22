@@ -40,6 +40,13 @@ public class EstoqueIndexInitializer implements CommandLineRunner {
         mongoTemplate.indexOps(COLECAO_MOVIMENTOS).ensureIndex(
                 new Index().on("pedidoId", Sort.Direction.ASC));
 
+        // extrato do insumo: filtra pela equipe e lista os mais recentes primeiro
+        mongoTemplate.indexOps(COLECAO_MOVIMENTOS).ensureIndex(
+                new Index().on("equipeId", Sort.Direction.ASC)
+                        .on("tipoInsumo", Sort.Direction.ASC)
+                        .on("insumoId", Sort.Direction.ASC)
+                        .on("criadoEm", Sort.Direction.DESC));
+
         // métricas de consumo: toda agregação filtra por equipe e período
         mongoTemplate.indexOps(COLECAO_MOVIMENTOS).ensureIndex(
                 new Index().on("equipeId", Sort.Direction.ASC)
