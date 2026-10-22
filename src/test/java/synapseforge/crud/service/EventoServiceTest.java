@@ -137,6 +137,25 @@ class EventoServiceTest {
     }
 
     @Test
+    void padraoMesAnoSoAceitaDigitos() {
+        assertEquals("^2026-08-", EventoService.padraoMesAno("08", "2026"));
+        assertEquals("^2026-08-", EventoService.padraoMesAno("8", "2026"));
+
+        for (String[] invalido : new String[][]{
+                {".*", "2026"}, {"08", "(a+)+$"}, {"13", "2026"}, {"0", "2026"}, {"08", "26"}, {null, "2026"}}) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> EventoService.padraoMesAno(invalido[0], invalido[1]));
+        }
+    }
+
+    @Test
+    void buscarPorMesComParametroInvalidoNaoConsultaOBanco() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.buscarPorUserIdAndMesAno("u-1", "u-1", ".*", "2026"));
+        verifyNoInteractions(repository);
+    }
+
+    @Test
     void atualizarDeveSalvarMudancas() {
         naEquipe("u-1", "eq-1");
         Evento atual = new Evento();
