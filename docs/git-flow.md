@@ -38,6 +38,19 @@ gitGraph
 - **Front:** `npm ci`, `lint`, `typecheck` e `build` (check "lint · typecheck · build").
 - **Back:** `./mvnw verify`, que compila e roda todos os testes (check "build · testes").
 
+## CD (deploy depois da CI)
+
+O deploy só acontece em push na `dev` ou na `main` (ou seja, depois do merge de um PR) e só se a CI
+passar no mesmo commit (SYN-88/89):
+
+| branch | ambiente | back-end (Render) | front-end (Vercel) |
+|---|---|---|---|
+| PR para `dev`/`main` | preview | — | deploy de preview por PR |
+| `dev` | homologação | `synapse-forge-api-homolog` | `synapse-forge-homolog.vercel.app` |
+| `main` | produção | `synapse-forge-api` | domínio de produção |
+
+Detalhes, variáveis e passos de configuração: seção "Deploy (CI/CD)" do `README.md`.
+
 ## Proteção no GitHub (`main` e `dev`)
 
 PR obrigatório, check da CI obrigatório, sem force push e sem apagar a branch. Branch de feature é
