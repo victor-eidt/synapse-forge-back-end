@@ -67,9 +67,16 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired
     private BCryptPasswordEncoder passwordEncoder;
 
+    @Autowired
+    private DashboardMockSeeder dashboardMockSeeder;
+
     // Usuarios de teste tem senha fixa (1234): desligar em producao (APP_SEED_ENABLED=false)
     @Value("${app.seed.enabled:true}")
     private boolean seedEnabled;
+
+    // SYN-164: pedidos/materiais fictícios do dashboard; só valem com seedEnabled
+    @Value("${app.seed.dashboard-mocks:true}")
+    private boolean dashboardMocksEnabled;
 
     @Override
     public void run(String... args) throws Exception {
@@ -84,6 +91,13 @@ public class DataInitializer implements CommandLineRunner {
         seedTestEquipe();
         migrarDadosSemEquipe();
         seedTestCores();
+
+        if (dashboardMocksEnabled) {
+            dashboardMockSeeder.seed(
+                    EQUIPE_TESTE_ID,
+                    userRepository.findByEmail(EMAIL_GERENTE_TESTE).map(User::getId).orElse(null)
+            );
+        }
     }
 
     // Sets emailConfirmado=true for users created before the email confirmation feature

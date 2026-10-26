@@ -68,6 +68,7 @@ openssl rand -base64 32
 | `APP_ADMIN_EMAILS` | vazio | Emails autorizados a usar `/admin/**` |
 | `APP_SWAGGER_ENABLED` | `true` | Liga/desliga o Swagger UI e o `/v3/api-docs` |
 | `APP_SEED_ENABLED` | `true` | Liga/desliga a criação dos dados de teste |
+| `APP_SEED_DASHBOARD_MOCKS` | `true` | Liga/desliga só os pedidos e materiais fictícios do dashboard (exige `APP_SEED_ENABLED`) |
 | `APP_MONGO_SCHEMA_VALIDATION_ENABLED` | `true` | Aplica o `$jsonSchema` nas coleções na subida |
 | `APP_MONGO_SCHEMA_VALIDATION_ACTION` | `error` | `error` recusa documento inválido; `warn` só registra no log do MongoDB |
 
@@ -240,6 +241,10 @@ Também são criadas cores de exemplo como:
 - Amarelo Mostarda
 
 Essas paletas simulam dados reais usados em orçamentos, misturas e pedidos de pintura.
+
+### Pedidos e materiais do dashboard
+
+Para o dashboard de pedidos (`/pedidos/metricas/por-status` e `/pedidos/metricas/materiais-mais-usados`) ter o que mostrar, a equipe de teste recebe 6 materiais (PLA, PETG, resina, ABS e TPU) e 24 pedidos espalhados pelos últimos 90 dias, em todos os status, com preços calculados como no orçamento e alguns prazos vencidos. A carga usa ids fixos, então reiniciar a aplicação não duplica nada. Desligue só essa parte com `APP_SEED_DASHBOARD_MOCKS=false`.
 
 ---
 
