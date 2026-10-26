@@ -6,9 +6,11 @@ import org.springframework.stereotype.Component;
 import synapseforge.crud.infrastructure.entity.Material;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
+import synapseforge.crud.infrastructure.entity.TipoInsumo;
 import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.UserRepository;
+import synapseforge.crud.service.EstoqueService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -106,6 +108,9 @@ public class DashboardMockSeeder {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private EstoqueService estoqueService;
+
     public void seed(String equipeId, String usuarioId) {
 
         if (usuarioId == null) {
@@ -118,6 +123,7 @@ public class DashboardMockSeeder {
         for (int i = 0; i < MATERIAIS.size(); i++) {
 
             if (salvarSeNaoExiste(novoMaterial(equipeId, i), idMaterial(i))) {
+                registrarCargaInicial(i, usuarioId);
                 materiaisCriados++;
             }
         }
@@ -156,6 +162,25 @@ public class DashboardMockSeeder {
         return true;
     }
 
+    // O saldo nasce zerado e entra pelo livro de movimentos, como uma entrada feita na tela de
+    // estoque: assim o histórico do material mostra de onde veio o saldo.
+    private void registrarCargaInicial(int indice, String usuarioId) {
+
+        try {
+            estoqueService.registrarEntrada(
+                    TipoInsumo.MATERIAL,
+                    idMaterial(indice),
+                    new BigDecimal(MATERIAIS.get(indice).saldoG()),
+                    UnidadeMedida.G,
+                    "Carga inicial (dados de exemplo do dashboard)",
+                    usuarioId
+            );
+        } catch (RuntimeException e) {
+            System.out.println("Mocks do dashboard: entrada do material " + idMaterial(indice)
+                    + " não registrada: " + e.getMessage());
+        }
+    }
+
     private Material novoMaterial(String equipeId, int indice) {
 
         MaterialMock mock = MATERIAIS.get(indice);
@@ -170,7 +195,6 @@ public class DashboardMockSeeder {
         material.setPrecoPorGrama(new BigDecimal(mock.precoPorGrama()));
         material.setAtivo(true);
         material.setUnidade(UnidadeMedida.G);
-        material.setSaldo(new BigDecimal(mock.saldoG()));
         material.setEstoqueMinimo(new BigDecimal(mock.estoqueMinimoG()));
 
         return material;

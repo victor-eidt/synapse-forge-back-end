@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.List;
@@ -25,8 +26,11 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import synapseforge.crud.infrastructure.entity.Material;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
+import synapseforge.crud.infrastructure.entity.TipoInsumo;
+import synapseforge.crud.infrastructure.entity.UnidadeMedida;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.UserRepository;
+import synapseforge.crud.service.EstoqueService;
 
 @ExtendWith(MockitoExtension.class)
 class DashboardMockSeederTest {
@@ -41,6 +45,9 @@ class DashboardMockSeederTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private EstoqueService estoqueService;
 
     @InjectMocks
     private DashboardMockSeeder seeder;
@@ -61,6 +68,13 @@ class DashboardMockSeederTest {
         assertEquals(6, materiais.size());
         assertEquals(24, pedidos.size());
         assertTrue(materiais.stream().allMatch(m -> EQUIPE.equals(m.getEquipeId())));
+
+        // o saldo nasce zerado e entra pelo livro de movimentos, uma entrada por material
+        assertTrue(materiais.stream().allMatch(m -> m.getSaldo().signum() == 0));
+        for (Material material : materiais) {
+            verify(estoqueService).registrarEntrada(eq(TipoInsumo.MATERIAL), eq(material.getId()),
+                    any(BigDecimal.class), eq(UnidadeMedida.G), anyString(), eq("u-gerente"));
+        }
 
         // o $lookup das métricas converte materialId para ObjectId: precisa ser hex válido
         Set<String> idsMateriais = materiais.stream().map(Material::getId).collect(Collectors.toSet());
@@ -97,13 +111,14 @@ class DashboardMockSeederTest {
         seeder.seed(EQUIPE, "u-gerente");
 
         verify(mongoTemplate, never()).insert(any(Object.class));
+        verifyNoInteractions(estoqueService);
     }
 
     @Test
     void seed_semGerenteNaoFazNada() {
         seeder.seed(EQUIPE, null);
 
-        verifyNoInteractions(mongoTemplate, userRepository);
+        verifyNoInteractions(mongoTemplate, userRepository, estoqueService);
     }
 
     private <T> List<T> capturar(Class<T> tipo) {
