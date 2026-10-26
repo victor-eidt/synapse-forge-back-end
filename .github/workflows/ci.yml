@@ -1,6 +1,14 @@
-# CI do back-end (SYN-86). Roda em todo PR e em todo push para dev e main.
+# CI/CD do back-end. CI (SYN-86) em todo PR e em todo push para dev e main; CD no Render
+# (SYN-89) só em push, e só depois que o job "build · testes" passa no mesmo commit.
 # O gate é o PR: compilação e toda a suíte de testes (inclusive o contextLoads com
 # Mongo embutido) precisam passar antes do merge.
+#
+#   push na dev  → GitHub Environment "homologacao" → serviço synapse-forge-api-homolog
+#   push na main → GitHub Environment "producao"    → serviço synapse-forge-api
+#
+# O deploy chama o deploy hook do Render (segredo RENDER_DEPLOY_HOOK_URL de cada Environment)
+# com o SHA do commit testado. No render.yaml o auto-deploy está desligado: quem publica é este
+# workflow. Sem o segredo, o job só avisa e termina verde. Ver README, seção "Deploy".
 name: CI
 
 on:
@@ -11,6 +19,9 @@ on:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   verify:
@@ -27,3 +38,41 @@ jobs:
           cache: maven
 
       - run: sh ./mvnw -B verify
+
+  deploy:
+    name: deploy · render
+    needs: verify
+    if: github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ github.ref_name == 'main' && 'producao' || 'homologacao' }}
+    steps:
+      - name: Disparar deploy no Render
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          AMBIENTE: ${{ github.ref_name == 'main' && 'produção' || 'homologação' }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            msg="RENDER_DEPLOY_HOOK_URL não configurado no Environment: deploy de $AMBIENTE pulado."
+            echo "::notice title=Deploy no Render pulado::$msg"
+            {
+              echo "### Deploy no Render pulado ($AMBIENTE)"
+              echo ""
+              echo "$msg Cadastre o deploy hook do serviço em Settings → Environments (ver README, seção Deploy)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # ref = o commit que acabou de passar na CI (não "o último da branch")
+          resposta=$(curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}&ref=${GITHUB_SHA}")
+          echo "Resposta do Render: $resposta"
+          {
+            echo "### Deploy no Render disparado ($AMBIENTE)"
+            echo ""
+            echo "- Branch: \`$GITHUB_REF_NAME\`"
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Resposta: \`$resposta\`"
+            echo ""
+            echo "O build da imagem e o health check (/actuator/health) seguem no painel do Render."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Deploy de $AMBIENTE disparado::commit $GITHUB_SHA"

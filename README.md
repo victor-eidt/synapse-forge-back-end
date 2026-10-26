@@ -27,6 +27,8 @@ Essa estrutura facilita manutenção, testes e evolução do sistema.
 - OpenAPI / Swagger
 - Lombok
 - Maven
+- Spring Boot Actuator (health check)
+- Docker · Render · MongoDB Atlas (deploy)
 
 ---
 
@@ -63,6 +65,11 @@ openssl rand -base64 32
 | Variável | Padrão | Uso |
 |---|---|---|
 | `APP_JWT_SECRET` | nenhum (obrigatória) | Segredo de assinatura dos tokens, em Base64 com pelo menos 32 bytes. Trocar o valor desloga todo mundo |
+| `SPRING_DATA_MONGODB_URI` | `mongodb://localhost:27017/synapse-forge` | Conexão com o MongoDB. O nome do banco vai no caminho da URI |
+| `PORT` | `8081` | Porta HTTP (o Render injeta a dele) |
+| `SPRING_MAIL_HOST` / `SPRING_MAIL_PORT` | `smtp.gmail.com` / `587` | Servidor SMTP |
+| `SPRING_MAIL_USERNAME` / `SPRING_MAIL_PASSWORD` | vazio | Login do SMTP (local: `application-secrets.properties`) |
+| `APP_MAIL_FROM` | o `SPRING_MAIL_USERNAME` | Remetente dos e-mails |
 | `APP_URL` | `http://localhost:5173` | URL do front usada nos links de email |
 | `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Origens liberadas no CORS |
 | `APP_ADMIN_EMAILS` | vazio | Emails autorizados a usar `/admin/**` |
@@ -71,6 +78,7 @@ openssl rand -base64 32
 | `APP_SEED_DASHBOARD_MOCKS` | `true` | Liga/desliga só os pedidos e materiais fictícios do dashboard (exige `APP_SEED_ENABLED`) |
 | `APP_MONGO_SCHEMA_VALIDATION_ENABLED` | `true` | Aplica o `$jsonSchema` nas coleções na subida |
 | `APP_MONGO_SCHEMA_VALIDATION_ACTION` | `error` | `error` recusa documento inválido; `warn` só registra no log do MongoDB |
+| `JAVA_TOOL_OPTIONS` | definido no `Dockerfile` | Flags da JVM no container (memória, GC) |
 
 > Em produção, use `APP_SWAGGER_ENABLED=false` e `APP_SEED_ENABLED=false`. O usuário do MongoDB precisa do privilégio `collMod` para aplicar o JSON Schema em coleções que já existem (o papel `readWrite` não tem); sem ele a aplicação sobe e só registra um aviso.
 
@@ -84,6 +92,166 @@ Pré-requisitos: Java 17 e um MongoDB rodando em `localhost:27017`.
 ./mvnw spring-boot:run   # sobe a API em http://localhost:8081
 ./mvnw verify            # build + testes
 ```
+
+Com Docker (a mesma imagem que vai para a nuvem):
+
+```bash
+docker build -t synapse-forge-api .
+docker run --rm -p 8081:8081 \
+  -e SPRING_DATA_MONGODB_URI=mongodb://host.docker.internal:27017/synapse-forge \
+  -e APP_JWT_SECRET="$(openssl rand -base64 32)" \
+  synapse-forge-api
+curl http://localhost:8081/actuator/health   # {"status":"UP"}
+```
+
+---
+
+## ☁️ Deploy (CI/CD)
+
+Deploy na nuvem com um pipeline por ambiente (SYN-89 no back, SYN-88 no front):
+
+- **Back-end:** container Docker no **Render** (plano free), descrito em [`render.yaml`](render.yaml)
+  (Blueprint = infraestrutura como código) e construído pelo [`Dockerfile`](Dockerfile).
+- **Banco:** **MongoDB Atlas** (cluster M0 gratuito), um banco por ambiente no mesmo cluster.
+- **Front-end:** **Vercel**, publicado pelo GitHub Actions do repositório do front (ver o README de lá).
+
+```mermaid
+flowchart LR
+    PR[PR para dev/main] --> CI["CI: build · testes"]
+    CI -->|merge na dev| DH["deploy · render<br/>Environment homologacao"]
+    CI -->|merge na main| DP["deploy · render<br/>Environment producao"]
+    DH -->|deploy hook + SHA| RH[Render<br/>synapse-forge-api-homolog]
+    DP -->|deploy hook + SHA| RP[Render<br/>synapse-forge-api]
+    RH --> AH[(Atlas<br/>synapse-forge-homolog)]
+    RP --> AP[(Atlas<br/>synapse-forge)]
+    VH[Vercel Preview<br/>synapse-forge-homolog.vercel.app] --> RH
+    VP[Vercel Production<br/>synapse-forge.vercel.app] --> RP
+```
+
+### Ambientes
+
+| Ambiente | Branch | GitHub Environment | Serviço no Render | Banco no Atlas | Front na Vercel |
+|---|---|---|---|---|---|
+| dev (local) | `feature/*`, `fix/*` | — | `localhost:8081` | `synapse-forge` (local) | `localhost:5173` |
+| test (CI) | todo PR | — | — (Mongo embutido nos testes) | — | — |
+| homologação | `dev` | `homologacao` | `synapse-forge-api-homolog` | `synapse-forge-homolog` | Preview: `synapse-forge-homolog.vercel.app` + previews dos PRs |
+| produção | `main` | `producao` | `synapse-forge-api` | `synapse-forge` | Production: `synapse-forge.vercel.app` |
+
+Os endereços públicos da API ficam `https://<serviço>.onrender.com` (o Render mostra o endereço exato
+de cada serviço; se o nome já existir, ele acrescenta um sufixo).
+
+### Como o pipeline funciona
+
+1. **PR para a `dev` ou a `main`:** o job `build · testes` (`./mvnw verify`) é o gate do merge.
+2. **Merge (push) na `dev` ou na `main`:** o mesmo job roda de novo no commit mergeado e, só se
+   passar, o job `deploy · render` entra no GitHub Environment do ambiente e chama o deploy hook do
+   Render com `&ref=<SHA>`, ou seja, publica exatamente o commit que foi testado.
+3. **No Render:** a imagem é construída pelo `Dockerfile` (os testes não rodam de novo), o serviço sobe
+   e o Render só troca o tráfego para a versão nova quando `GET /actuator/health` responde
+   `{"status":"UP"}` (o health inclui o ping no MongoDB). Se o health check falhar, a versão anterior
+   continua no ar.
+4. O auto-deploy do Render está desligado (`autoDeployTrigger: "off"` no `render.yaml`): push que
+   não passou na CI nunca vai para a nuvem.
+5. Sem o segredo `RENDER_DEPLOY_HOOK_URL` no Environment, o job de deploy só mostra um aviso e termina
+   verde (para os pushes não ficarem vermelhos antes de as contas existirem).
+
+### Variáveis por ambiente
+
+No Render, as marcadas como segredo são pedidas na criação do Blueprint (`sync: false`) e nunca
+ficam no repositório; as outras estão escritas no `render.yaml`.
+
+| Variável | Homologação | Produção | Segredo |
+|---|---|---|---|
+| `SPRING_DATA_MONGODB_URI` | `mongodb+srv://<usuario>:<senha>@<cluster>.mongodb.net/synapse-forge-homolog?retryWrites=true&w=majority` | o mesmo, com `/synapse-forge` | sim |
+| `APP_JWT_SECRET` | `openssl rand -base64 32` (um só para homologação) | `openssl rand -base64 32` (outro) | sim |
+| `SPRING_MAIL_HOST` | `smtp-relay.brevo.com` | `smtp-relay.brevo.com` | não |
+| `SPRING_MAIL_PORT` | `2525` | `2525` | não |
+| `SPRING_MAIL_USERNAME` | login SMTP do Brevo | login SMTP do Brevo | sim |
+| `SPRING_MAIL_PASSWORD` | chave SMTP do Brevo | chave SMTP do Brevo | sim |
+| `APP_MAIL_FROM` | remetente verificado no Brevo | remetente verificado no Brevo | sim (dado pessoal) |
+| `APP_ADMIN_EMAILS` | e-mails dos admins | e-mails dos admins | sim (dado pessoal) |
+| `APP_URL` | `https://synapse-forge-homolog.vercel.app` | `https://synapse-forge.vercel.app` | não |
+| `APP_CORS_ALLOWED_ORIGINS` | `https://synapse-forge-homolog.vercel.app,https://synapse-forge-*.vercel.app` | `https://synapse-forge.vercel.app` | não |
+| `APP_SEED_ENABLED` | `true` | `false` | não |
+| `APP_SEED_DASHBOARD_MOCKS` | `true` | `false` | não |
+| `APP_SWAGGER_ENABLED` | `true` | `false` (decisão do time) | não |
+| `APP_MONGO_SCHEMA_VALIDATION_ENABLED` | `true` | `true` | não |
+| `APP_MONGO_SCHEMA_VALIDATION_ACTION` | `error` | `error` | não |
+| `PORT` | injetada pelo Render | injetada pelo Render | não |
+
+No GitHub (repositório do back), cada Environment tem um segredo:
+
+| Environment | Segredo | Valor |
+|---|---|---|
+| `homologacao` | `RENDER_DEPLOY_HOOK_URL` | deploy hook do `synapse-forge-api-homolog` |
+| `producao` | `RENDER_DEPLOY_HOOK_URL` | deploy hook do `synapse-forge-api` |
+
+Observações:
+
+- **Seed em produção desligado.** Os usuários de teste têm senha `1234`; com o seed ligado, qualquer
+  pessoa com o endereço entra como `gerente@teste.com`. Em homologação o seed fica ligado de propósito
+  (dados fictícios para testar e demonstrar).
+- **Swagger:** ligado em homologação. Em produção está `false`; se o time quiser a documentação
+  pública em produção (como evidência, por exemplo), basta trocar para `"true"` no `render.yaml`. A
+  API continua exigindo JWT de qualquer forma.
+- **CORS:** o `CorsConfig` usa `setAllowedOriginPatterns`, então `https://synapse-forge-*.vercel.app`
+  libera os previews dos PRs do front (`synapse-forge-<hash>-<conta>.vercel.app`) e a homologação. Em
+  produção só o domínio de produção. Se o domínio da Vercel for outro, ajuste `APP_URL` e
+  `APP_CORS_ALLOWED_ORIGINS` no `render.yaml` (PR normal; o Render sincroniza o Blueprint).
+- **E-mail:** o plano free do Render **bloqueia as portas SMTP 25, 465 e 587** (desde set/2025), então
+  o Gmail não funciona lá. O Brevo (gratuito, 300 e-mails/dia) aceita SMTP na porta **2525**, que
+  passa. Sem e-mail funcionando, o cadastro não consegue confirmar a conta. Alternativa: plano pago do
+  Render e manter o Gmail. O envio tem timeout de 10 s, para uma porta bloqueada não prender a
+  requisição.
+- **Admin em produção:** nenhum código cria ADMIN. Depois de cadastrar a conta, mude o `role` do
+  documento para `ADMIN` no Atlas (*Data Explorer*, coleção `users`) e coloque o e-mail em
+  `APP_ADMIN_EMAILS`.
+- **Health check:** só `/actuator/health` é público e responde só `{"status":"UP"}` (sem componentes
+  nem detalhes); nenhum outro endpoint do Actuator é exposto.
+
+### Passos manuais (uma vez, nesta ordem)
+
+1. **MongoDB Atlas**
+   1. Criar a conta e um projeto; criar o cluster **M0** (Free) na **AWS, us-east-1 (N. Virginia)**,
+      mesma região dos serviços no Render.
+   2. *Database Access → Add New Database User* (senha sem caracteres especiais, ou codificada na URI):
+      um usuário por ambiente, com *Specific Privileges* `readWrite` e `dbAdmin` só no banco dele
+      (`synapse-forge-homolog` e `synapse-forge`). O `dbAdmin` dá o `collMod` que aplica o JSON Schema.
+   3. *Network Access → Add IP Address → Allow access from anywhere* (`0.0.0.0/0`): o Render free não
+      tem IP fixo.
+   4. *Connect → Drivers*: copiar a string `mongodb+srv://...` e colocar o nome do banco no caminho
+      (`...mongodb.net/synapse-forge-homolog?...`). Sem o nome, o Spring usa o banco `test`.
+2. **Brevo (e-mail):** criar a conta, verificar o remetente (*Senders*) e gerar a chave em
+   *SMTP & API → SMTP*. O login SMTP e a chave viram `SPRING_MAIL_USERNAME` e `SPRING_MAIL_PASSWORD`.
+3. **GitHub:** mergear o PR da SYN-89 na `dev` e fazer a release `dev` → `main`. O serviço de produção
+   constrói a `main`; sem o `Dockerfile` lá, o primeiro build dele falha.
+4. **Render**
+   1. Entrar com a conta do GitHub e dar acesso ao repositório `synapse-forge-back-end`.
+   2. *New → Blueprint*, escolher o repositório e a branch onde está o `render.yaml`; preencher os
+      valores pedidos (`sync: false`) de cada serviço e aplicar. Os dois serviços são criados e fazem
+      o primeiro deploy.
+   3. Conferir: `https://<serviço>.onrender.com/actuator/health` responde `{"status":"UP"}` e o login
+      funciona (em homologação, `gerente@teste.com` / `1234`).
+   4. Em cada serviço, *Settings → Deploy Hook*: copiar a URL (é um segredo).
+5. **GitHub (repositório do back)**: *Settings → Environments*:
+   - `homologacao`: *Deployment branches* = só `dev`; segredo `RENDER_DEPLOY_HOOK_URL` = hook do homolog;
+   - `producao`: *Deployment branches* = só `main` (opcional: *Required reviewers* para aprovar cada
+     deploy de produção); segredo `RENDER_DEPLOY_HOOK_URL` = hook de produção.
+6. **Vercel:** criar o projeto do front e cadastrar `VITE_API_URL` (Production = API de produção,
+   Preview = API de homologação), conforme o README do front.
+7. **Teste ponta a ponta:** um PR qualquer mergeado na `dev` deve terminar com `deploy · render` verde
+   e um deploy novo no painel do Render com o mesmo SHA.
+
+### Limites do plano gratuito
+
+- **Render free:** o serviço dorme depois de 15 min sem acesso e a primeira requisição leva cerca de
+  1 min para acordar (abra o `/actuator/health` antes de uma apresentação). São 750 horas de instância
+  por mês para a conta inteira, divididas entre os dois serviços; não deixe um "pinger" mantendo os dois
+  acordados o mês todo. 512 MB de RAM (a JVM usa 75% para o heap; medido localmente: ~190 MB de
+  memória depois de 300 requisições).
+- **Atlas M0:** 512 MB de armazenamento, somando os dois bancos e os arquivos do GridFS.
+- O limite de tentativas do login (`RateLimitFilter`) fica em memória: zera quando o serviço reinicia
+  ou dorme.
 
 ---
 

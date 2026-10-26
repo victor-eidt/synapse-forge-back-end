@@ -56,6 +56,11 @@ public class SecurityConfig {
                                 "/webjars/**"
                         ).permitAll()
 
+                        // Health check do Render (SYN-89). Só o status geral; os outros
+                        // endpoints do Actuator nem são expostos (application.properties).
+                        .requestMatchers(HttpMethod.GET, "/actuator/health")
+                        .permitAll()
+
                         // Autenticação
                         .requestMatchers("/auth/**")
                         .permitAll()
