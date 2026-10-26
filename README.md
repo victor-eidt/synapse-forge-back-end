@@ -142,6 +142,7 @@ O sistema conta com CRUD completo de usuários, incluindo:
 - confirmação de email
 - reset de senha
 - gerenciamento de email pendente para troca
+- preferências salvas do próprio usuário: tema, idioma e dashboard (período e widgets na ordem escolhida)
 
 ### 2) Autenticação e conta
 
@@ -285,7 +286,7 @@ A lista completa, com parâmetros e modelos de requisição/resposta, está no S
 | Base | O que faz |
 |---|---|
 | `/auth` | cadastro (cliente e gerente), login, confirmação de email, esqueci/redefinir senha |
-| `/users` | CRUD de usuários, lote, perfil próprio (`/me`), busca de clientes, troca de email |
+| `/users` | CRUD de usuários, lote, perfil próprio (`/me`), preferências (`/me/preferencias`), busca de clientes, troca de email |
 | `/equipes` | criar/editar/excluir equipe, `/minha`, integrantes, convites, foto e banner |
 | `/pedidos` | CRUD de pedidos, avanço/regressão de status, cancelamento, objeto 3D e ordem de serviço |
 | `/orcamentos` | cálculo, criação (com arquivos), aprovação/rejeição, objeto 3D e imagens |

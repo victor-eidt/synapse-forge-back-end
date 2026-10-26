@@ -1,6 +1,7 @@
 package synapseforge.crud.config;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -65,6 +66,17 @@ class OpenApiSecurityTest {
     @Test
     void rotaProtegida_semToken_continuaRetornando401() throws Exception {
         mockMvc.perform(get("/users"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void preferencias_semToken_retornam401() throws Exception {
+        // SYN-166: rota de qualquer papel, mas nunca pública
+        mockMvc.perform(get("/users/me/preferencias"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/users/me/preferencias")
+                        .contentType("application/json")
+                        .content("{\"tema\":\"claro\"}"))
                 .andExpect(status().isUnauthorized());
     }
 }

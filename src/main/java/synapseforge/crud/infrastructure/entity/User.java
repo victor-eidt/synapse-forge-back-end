@@ -51,4 +51,7 @@ public class User {
     private String emailPendente;
     private String emailMudancaToken;
     private LocalDateTime emailMudancaTokenExpira;
+
+    // Tema, idioma e dashboard (GET/PUT /users/me/preferencias). Nulo = nunca salvou.
+    private PreferenciasUsuario preferencias;
 }
