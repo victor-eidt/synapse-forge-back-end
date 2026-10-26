@@ -1,0 +1,113 @@
+# Render Blueprint do back-end (SYN-89): infraestrutura como código.
+# Spec: https://render.com/docs/blueprint-spec
+#
+# Dois serviços web Docker no plano free, um por ambiente, cada um com o seu banco no Atlas:
+#   synapse-forge-api-homolog ← branch dev  (homologação) → banco synapse-forge-homolog
+#   synapse-forge-api         ← branch main (produção)    → banco synapse-forge
+#
+# autoDeployTrigger: off → o Render NÃO publica sozinho no push. Quem dispara o deploy é o
+# GitHub Actions (.github/workflows/ci.yml), pelo deploy hook, só depois que "build · testes"
+# passa. (autoDeployTrigger substitui o antigo autoDeploy: false, que está obsoleto.)
+#
+# Segredos ficam com sync: false: o Render pede o valor só na criação do Blueprint e nunca
+# guarda nada neste arquivo. Valores que não são segredo ficam escritos aqui; mudar um deles
+# é um PR neste arquivo, não um clique no painel.
+#
+# Domínios do front (Vercel): se o domínio de produção do projeto não for synapse-forge.vercel.app,
+# ajuste APP_URL e APP_CORS_ALLOWED_ORIGINS do serviço de produção.
+
+services:
+  # ---------- homologação (branch dev) ----------
+  - type: web
+    name: synapse-forge-api-homolog
+    runtime: docker
+    repo: https://github.com/victor-eidt/synapse-forge-back-end
+    branch: dev
+    plan: free
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    autoDeployTrigger: "off"
+    envVars:
+      # Segredos (preenchidos no painel na criação)
+      - key: SPRING_DATA_MONGODB_URI
+        sync: false # mongodb+srv://<usuario>:<senha>@<cluster>.mongodb.net/synapse-forge-homolog?retryWrites=true&w=majority
+      - key: APP_JWT_SECRET
+        sync: false # openssl rand -base64 32 (diferente do de produção)
+      # E-mail: o plano free do Render bloqueia as portas SMTP 25/465/587 (o Gmail não sai).
+      # A porta 2525 passa; o Brevo (gratuito, 300 e-mails/dia) atende nela. Ver README.
+      - key: SPRING_MAIL_HOST
+        value: smtp-relay.brevo.com
+      - key: SPRING_MAIL_PORT
+        value: "2525"
+      - key: SPRING_MAIL_USERNAME
+        sync: false # login SMTP do Brevo
+      - key: SPRING_MAIL_PASSWORD
+        sync: false # chave SMTP do Brevo
+      - key: APP_MAIL_FROM
+        sync: false # remetente verificado no Brevo
+      - key: APP_ADMIN_EMAILS
+        sync: false
+      # Configuração do ambiente
+      - key: APP_URL
+        value: https://synapse-forge-homolog.vercel.app
+      - key: APP_CORS_ALLOWED_ORIGINS
+        # homologação + previews dos PRs do front (synapse-forge-<hash>-<conta>.vercel.app)
+        value: https://synapse-forge-homolog.vercel.app,https://synapse-forge-*.vercel.app
+      - key: APP_SEED_ENABLED
+        value: "true"
+      - key: APP_SEED_DASHBOARD_MOCKS
+        value: "true"
+      - key: APP_SWAGGER_ENABLED
+        value: "true"
+      - key: APP_MONGO_SCHEMA_VALIDATION_ENABLED
+        value: "true"
+      - key: APP_MONGO_SCHEMA_VALIDATION_ACTION
+        value: error
+
+  # ---------- produção (branch main) ----------
+  - type: web
+    name: synapse-forge-api
+    runtime: docker
+    repo: https://github.com/victor-eidt/synapse-forge-back-end
+    branch: main
+    plan: free
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: SPRING_DATA_MONGODB_URI
+        sync: false # mongodb+srv://<usuario>:<senha>@<cluster>.mongodb.net/synapse-forge?retryWrites=true&w=majority
+      - key: APP_JWT_SECRET
+        sync: false # openssl rand -base64 32
+      # E-mail: o plano free do Render bloqueia as portas SMTP 25/465/587 (o Gmail não sai).
+      # A porta 2525 passa; o Brevo (gratuito, 300 e-mails/dia) atende nela. Ver README.
+      - key: SPRING_MAIL_HOST
+        value: smtp-relay.brevo.com
+      - key: SPRING_MAIL_PORT
+        value: "2525"
+      - key: SPRING_MAIL_USERNAME
+        sync: false # login SMTP do Brevo
+      - key: SPRING_MAIL_PASSWORD
+        sync: false # chave SMTP do Brevo
+      - key: APP_MAIL_FROM
+        sync: false # remetente verificado no Brevo
+      - key: APP_ADMIN_EMAILS
+        sync: false
+      - key: APP_URL
+        value: https://synapse-forge.vercel.app
+      - key: APP_CORS_ALLOWED_ORIGINS
+        value: https://synapse-forge.vercel.app
+      # Sem usuários de teste (senha 1234) em produção
+      - key: APP_SEED_ENABLED
+        value: "false"
+      - key: APP_SEED_DASHBOARD_MOCKS
+        value: "false"
+      # Decisão do time: "true" deixa o Swagger público em produção (útil como evidência)
+      - key: APP_SWAGGER_ENABLED
+        value: "false"
+      - key: APP_MONGO_SCHEMA_VALIDATION_ENABLED
+        value: "true"
+      - key: APP_MONGO_SCHEMA_VALIDATION_ACTION
+        value: error

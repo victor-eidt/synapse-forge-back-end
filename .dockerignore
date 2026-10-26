@@ -1,0 +1,23 @@
+# Contexto do docker build (SYN-89): só o necessário para compilar.
+# Credenciais locais NUNCA entram na imagem; na nuvem tudo vem de variável de ambiente.
+**/application-secrets.properties
+.env
+.env.*
+
+# Saída de build e caches locais (a imagem compila do zero)
+target/
+.mvn/wrapper/maven-wrapper.jar
+
+# Git, CI, documentação e IDEs
+.git/
+.github/
+docs/
+*.md
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Dados locais do MongoDB (pasta ignorada pelo git)
+/mongo/
+docker-compose*.yml

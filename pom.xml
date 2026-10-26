@@ -92,6 +92,12 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- ACTUATOR: só o /actuator/health, usado pelo health check do Render (SYN-89) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
 		<!-- MAIL -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
