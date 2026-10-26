@@ -38,6 +38,10 @@ public class DashboardMockSeeder {
     // ObjectIds válidos: o $lookup das métricas converte Pedido.materialId para ObjectId
     private static final String PREFIXO_ID_MOCK = "5eed0164";
 
+    // Pedido sem cliente cadastrado ainda tem o nome preenchido (no PedidoRequestDTO ele é
+    // @NotBlank): o front conta com esse campo e quebrava com cliente null
+    private static final String CLIENTE_SEM_CADASTRO = "Cliente balcão";
+
     private static final BigDecimal CUSTO_MAQUINA_HORA = new BigDecimal("8.00");
     private static final BigDecimal CUSTO_MAO_DE_OBRA_HORA = new BigDecimal("35.00");
     private static final BigDecimal MARGEM_LUCRO = new BigDecimal("0.40");
@@ -208,6 +212,8 @@ public class DashboardMockSeeder {
         if (cliente != null) {
             pedido.setClienteId(cliente.getId());
             pedido.setCliente(cliente.getNome());
+        } else {
+            pedido.setCliente(CLIENTE_SEM_CADASTRO);
         }
 
         pedido.setProjeto(mock.projeto());

@@ -85,6 +85,9 @@ class DashboardMockSeederTest {
         assertTrue(pedidos.stream().anyMatch(p -> "u-alice".equals(p.getClienteId())
                 && "Alice Silva".equals(p.getCliente())));
         assertTrue(pedidos.stream().noneMatch(p -> p.getCliente() == null && p.getClienteId() != null));
+        // todo pedido tem nome de cliente, mesmo sem vínculo (o campo é @NotBlank no PedidoRequestDTO)
+        assertTrue(pedidos.stream().allMatch(p -> p.getCliente() != null && !p.getCliente().isBlank()));
+        assertTrue(pedidos.stream().anyMatch(p -> p.getClienteId() == null && "Cliente balcão".equals(p.getCliente())));
     }
 
     @Test
