@@ -13,8 +13,8 @@
 # guarda nada neste arquivo. Valores que não são segredo ficam escritos aqui; mudar um deles
 # é um PR neste arquivo, não um clique no painel.
 #
-# Domínios do front (Vercel): se o domínio de produção do projeto não for synapse-forge.vercel.app,
-# ajuste APP_URL e APP_CORS_ALLOWED_ORIGINS do serviço de produção.
+# Domínios do front (Vercel): o de produção é synapse-forge-one.vercel.app (synapse-forge.vercel.app já
+# tinha dono). Se ele mudar, ajuste APP_URL e APP_CORS_ALLOWED_ORIGINS do serviço de produção.
 
 services:
   # ---------- homologação (branch dev) ----------
@@ -96,9 +96,9 @@ services:
       - key: APP_ADMIN_EMAILS
         sync: false
       - key: APP_URL
-        value: https://synapse-forge.vercel.app
+        value: https://synapse-forge-one.vercel.app
       - key: APP_CORS_ALLOWED_ORIGINS
-        value: https://synapse-forge.vercel.app
+        value: https://synapse-forge-one.vercel.app
       # Sem usuários de teste (senha 1234) em produção
       - key: APP_SEED_ENABLED
         value: "false"
