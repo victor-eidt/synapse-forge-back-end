@@ -7,8 +7,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import synapseforge.crud.DTO.User.PerfilUpdateRequestDTO;
+import synapseforge.crud.infrastructure.entity.PreferenciasDashboard;
+import synapseforge.crud.infrastructure.entity.PreferenciasUsuario;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.entity.Role;
+import synapseforge.crud.infrastructure.entity.WidgetDashboard;
 import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 
@@ -120,6 +123,27 @@ class UserServiceUnitTest {
         assertEquals("ana@teste.com", salvo.getEmail());
         assertEquals("12345678900", salvo.getCpf());
         assertEquals("11999998888", salvo.getTelefone());
+    }
+
+    @Test
+    void perfilNaoApagaAsPreferencias() {
+        // SYN-166: o PUT /users/me regrava o documento inteiro; as preferências precisam ir junto
+        User u = usuarioComDados();
+        PreferenciasUsuario preferencias = new PreferenciasUsuario("escuro", "en-US", new PreferenciasDashboard(
+                "90d", List.of(new WidgetDashboard("indicadores", true))));
+        u.setPreferencias(preferencias);
+        when(repository.findById("u-1")).thenReturn(Optional.of(u));
+        when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        PerfilUpdateRequestDTO dto = new PerfilUpdateRequestDTO();
+        dto.setNome("Ana Maria");
+        dto.setTelefone("11911112222");
+
+        User salvo = userService.atualizarProprioPerfil("u-1", dto);
+
+        assertSame(preferencias, salvo.getPreferencias());
+        assertEquals("escuro", salvo.getPreferencias().getTema());
+        assertEquals("90d", salvo.getPreferencias().getDashboard().getPeriodo());
     }
 
     @Test
