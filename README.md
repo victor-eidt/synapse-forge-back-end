@@ -125,7 +125,7 @@ flowchart LR
     RH --> AH[(Atlas<br/>synapse-forge-homolog)]
     RP --> AP[(Atlas<br/>synapse-forge)]
     VH[Vercel Preview<br/>synapse-forge-homolog.vercel.app] --> RH
-    VP[Vercel Production<br/>synapse-forge.vercel.app] --> RP
+    VP[Vercel Production<br/>synapse-forge-one.vercel.app] --> RP
 ```
 
 ### Ambientes
@@ -135,10 +135,17 @@ flowchart LR
 | dev (local) | `feature/*`, `fix/*` | — | `localhost:8081` | `synapse-forge` (local) | `localhost:5173` |
 | test (CI) | todo PR | — | — (Mongo embutido nos testes) | — | — |
 | homologação | `dev` | `homologacao` | `synapse-forge-api-homolog` | `synapse-forge-homolog` | Preview: `synapse-forge-homolog.vercel.app` + previews dos PRs |
-| produção | `main` | `producao` | `synapse-forge-api` | `synapse-forge` | Production: `synapse-forge.vercel.app` |
+| produção | `main` | `producao` | `synapse-forge-api` | `synapse-forge` | Production: `synapse-forge-one.vercel.app` |
 
 Os endereços públicos da API ficam `https://<serviço>.onrender.com` (o Render mostra o endereço exato
 de cada serviço; se o nome já existir, ele acrescenta um sufixo).
+
+Endereços atuais:
+
+| Ambiente | API | Front |
+|---|---|---|
+| homologação | https://synapse-forge-api-homolog.onrender.com | https://synapse-forge-homolog.vercel.app |
+| produção | https://synapse-forge-api-1dfp.onrender.com | https://synapse-forge-one.vercel.app |
 
 ### Como o pipeline funciona
 
@@ -170,8 +177,8 @@ ficam no repositório; as outras estão escritas no `render.yaml`.
 | `SPRING_MAIL_PASSWORD` | chave SMTP do Brevo | chave SMTP do Brevo | sim |
 | `APP_MAIL_FROM` | remetente verificado no Brevo | remetente verificado no Brevo | sim (dado pessoal) |
 | `APP_ADMIN_EMAILS` | e-mails dos admins | e-mails dos admins | sim (dado pessoal) |
-| `APP_URL` | `https://synapse-forge-homolog.vercel.app` | `https://synapse-forge.vercel.app` | não |
-| `APP_CORS_ALLOWED_ORIGINS` | `https://synapse-forge-homolog.vercel.app,https://synapse-forge-*.vercel.app` | `https://synapse-forge.vercel.app` | não |
+| `APP_URL` | `https://synapse-forge-homolog.vercel.app` | `https://synapse-forge-one.vercel.app` | não |
+| `APP_CORS_ALLOWED_ORIGINS` | `https://synapse-forge-homolog.vercel.app,https://synapse-forge-*.vercel.app` | `https://synapse-forge-one.vercel.app` | não |
 | `APP_SEED_ENABLED` | `true` | `false` | não |
 | `APP_SEED_DASHBOARD_MOCKS` | `true` | `false` | não |
 | `APP_SWAGGER_ENABLED` | `true` | `false` (decisão do time) | não |
