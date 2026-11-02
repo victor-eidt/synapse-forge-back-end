@@ -26,7 +26,9 @@ permissions:
 jobs:
   verify:
     name: build · testes
-    runs-on: ubuntu-latest
+    # Fixo em 24.04: o ubuntu-latest passou a ser o 26.04, que o embed.mongo 4.22.0 não reconhece
+    # ("could not resolve package ... distribution=Ubuntu"), e o Mongo embutido dos testes não sobe.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
