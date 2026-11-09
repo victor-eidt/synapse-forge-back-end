@@ -165,6 +165,44 @@
         "bsonType": "string"
       },
       "description": "Ids das imagens de referência no GridFS"
+    },
+    "formaEnvioId": {
+      "bsonType": [
+        "string",
+        "null"
+      ],
+      "description": "Forma de envio escolhida (coleção formas_envio)"
+    },
+    "codigoRastreio": {
+      "bsonType": [
+        "string",
+        "null"
+      ],
+      "description": "Código de rastreio do objeto"
+    },
+    "dataPostagem": {
+      "bsonType": [
+        "date",
+        "null"
+      ],
+      "description": "Data de postagem"
+    },
+    "previsaoEntrega": {
+      "bsonType": [
+        "date",
+        "null"
+      ],
+      "description": "Previsão de entrega"
+    },
+    "statusEnvio": {
+      "enum": [
+        "PREPARANDO",
+        "POSTADO",
+        "EM_TRANSITO",
+        "ENTREGUE",
+        null
+      ],
+      "description": "Situação do envio (StatusEnvio)"
     }
   }
 }

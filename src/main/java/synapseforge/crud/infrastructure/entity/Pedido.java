@@ -63,4 +63,13 @@ public class Pedido {
 
     // GridFS ids for reference images
     private List<String> imagensReferenciaFileIds;
+
+    // Envio e rastreio (RF15). A forma de envio fica na coleção auxiliar formas_envio;
+    // aqui só o id da opção escolhida. Pedidos antigos não têm estes campos (ficam nulos,
+    // e o status assume PREPARANDO ao carregar).
+    private String formaEnvioId;
+    private String codigoRastreio;
+    private LocalDate dataPostagem;
+    private LocalDate previsaoEntrega;
+    private StatusEnvio statusEnvio = StatusEnvio.PREPARANDO;
 }
