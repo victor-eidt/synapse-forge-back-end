@@ -12,9 +12,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+import synapseforge.crud.DTO.Pedido.PedidoEnvioRequestDTO;
 import synapseforge.crud.DTO.Pedido.PedidoRequestDTO;
+import synapseforge.crud.DTO.Pedido.PedidoResponseDTO;
 import synapseforge.crud.exception.EstoqueInsuficienteException;
+import synapseforge.crud.exception.RecursoNaoEncontradoException;
 import synapseforge.crud.exception.SemEquipeException;
+import synapseforge.crud.infrastructure.entity.FormaEnvio;
+import synapseforge.crud.infrastructure.entity.StatusEnvio;
 import synapseforge.crud.infrastructure.entity.ConsumoPedido;
 import synapseforge.crud.infrastructure.entity.ItemConsumo;
 import synapseforge.crud.infrastructure.entity.Material;
@@ -62,6 +67,9 @@ class PedidoServiceTest {
 
     @Mock
     private NotificacaoService notificacaoService;
+
+    @Mock
+    private FormaEnvioService formaEnvioService;
 
     @InjectMocks
     private PedidoService service;
@@ -620,5 +628,234 @@ class PedidoServiceTest {
         // pedido sem cliente continua permitido
         service.validarAtualizacao("p-1", "user-1", Role.GERENTE, dados);
         verify(repository, never()).save(any());
+    }
+
+    // =========================================================
+    // ENVIO E RASTREIO (RF15)
+    // =========================================================
+
+    private static final String URL_CORREIOS =
+            "https://rastreamento.correios.com.br/app/index.php?objeto={codigo}";
+
+    private static FormaEnvio formaPac() {
+        FormaEnvio forma = new FormaEnvio();
+        forma.setId("f-pac");
+        forma.setNome("Correios PAC");
+        forma.setTransportadora("Correios");
+        forma.setUrlRastreioTemplate(URL_CORREIOS);
+        forma.setAtivo(true);
+        return forma;
+    }
+
+    private Pedido pedidoEmProducao() {
+        Pedido pedido = pedidoDaEquipe("p-1", "eq-1");
+        pedido.setStatus(StatusPedido.ACABAMENTO);
+        when(repository.findByIdAndEquipeId("p-1", "eq-1")).thenReturn(Optional.of(pedido));
+        when(repository.save(any(Pedido.class))).thenAnswer(inv -> inv.getArgument(0));
+        return pedido;
+    }
+
+    @Test
+    void registrarEnvioGravaFormaCodigoEDatasEPassaAPostado() {
+        pedidoEmProducao();
+        when(formaEnvioService.buscarDisponivel("f-pac", "eq-1")).thenReturn(formaPac());
+
+        PedidoEnvioRequestDTO dto = new PedidoEnvioRequestDTO();
+        dto.setFormaEnvioId("f-pac");
+        dto.setCodigoRastreio(" AA123456789BR ");
+        dto.setDataPostagem(LocalDate.of(2026, 11, 9));
+        dto.setPrevisaoEntrega(LocalDate.of(2026, 11, 16));
+
+        Pedido salvo = service.registrarEnvio("p-1", "user-1", Role.TECNICO, dto);
+
+        assertEquals("f-pac", salvo.getFormaEnvioId());
+        assertEquals("AA123456789BR", salvo.getCodigoRastreio());
+        assertEquals(LocalDate.of(2026, 11, 9), salvo.getDataPostagem());
+        assertEquals(LocalDate.of(2026, 11, 16), salvo.getPrevisaoEntrega());
+        assertEquals(StatusEnvio.POSTADO, salvo.getStatusEnvio());
+        // a etapa de produção não muda por aqui
+        assertEquals(StatusPedido.ACABAMENTO, salvo.getStatus());
+        assertNotNull(salvo.getAtualizadoEm());
+    }
+
+    @Test
+    void codigoSemDataDePostagemAssumeHoje() {
+        pedidoEmProducao();
+        when(formaEnvioService.buscarDisponivel("f-pac", "eq-1")).thenReturn(formaPac());
+
+        PedidoEnvioRequestDTO dto = new PedidoEnvioRequestDTO();
+        dto.setFormaEnvioId("f-pac");
+        dto.setCodigoRastreio("AA123456789BR");
+
+        Pedido salvo = service.registrarEnvio("p-1", "user-1", Role.GERENTE, dto);
+
+        assertEquals(LocalDate.now(), salvo.getDataPostagem());
+        assertEquals(StatusEnvio.POSTADO, salvo.getStatusEnvio());
+    }
+
+    @Test
+    void envioSemCodigoFicaPreparandoESemLink() {
+        pedidoEmProducao();
+        when(formaEnvioService.buscarDisponivel("f-pac", "eq-1")).thenReturn(formaPac());
+
+        PedidoEnvioRequestDTO dto = new PedidoEnvioRequestDTO();
+        dto.setFormaEnvioId("f-pac");
+        dto.setCodigoRastreio("   ");
+        dto.setPrevisaoEntrega(LocalDate.of(2026, 11, 20));
+
+        Pedido salvo = service.registrarEnvio("p-1", "user-1", Role.TECNICO, dto);
+
+        assertNull(salvo.getCodigoRastreio());
+        assertNull(salvo.getDataPostagem());
+        assertEquals(StatusEnvio.PREPARANDO, salvo.getStatusEnvio());
+
+        when(formaEnvioService.buscarPorId("f-pac")).thenReturn(Optional.of(formaPac()));
+        PedidoResponseDTO resposta = service.toResponseDTO(salvo);
+        assertEquals("Correios PAC", resposta.getFormaEnvioNome());
+        assertNull(resposta.getLinkRastreio());
+    }
+
+    @Test
+    void statusExplicitoVenceEStatusAvancadoNaoRegrideAoRepostar() {
+        Pedido pedido = pedidoEmProducao();
+        when(formaEnvioService.buscarDisponivel("f-pac", "eq-1")).thenReturn(formaPac());
+
+        PedidoEnvioRequestDTO entregue = new PedidoEnvioRequestDTO();
+        entregue.setFormaEnvioId("f-pac");
+        entregue.setCodigoRastreio("AA123456789BR");
+        entregue.setStatusEnvio(StatusEnvio.ENTREGUE);
+        assertEquals(StatusEnvio.ENTREGUE,
+                service.registrarEnvio("p-1", "user-1", Role.TECNICO, entregue).getStatusEnvio());
+
+        // corrigir o código depois de entregue não volta para POSTADO
+        PedidoEnvioRequestDTO correcao = new PedidoEnvioRequestDTO();
+        correcao.setFormaEnvioId("f-pac");
+        correcao.setCodigoRastreio("BB987654321BR");
+        assertEquals(StatusEnvio.ENTREGUE,
+                service.registrarEnvio("p-1", "user-1", Role.TECNICO, correcao).getStatusEnvio());
+        assertEquals("BB987654321BR", pedido.getCodigoRastreio());
+    }
+
+    @Test
+    void toResponseDTOMontaOLinkDeRastreioComOCodigo() {
+        Pedido pedido = pedidoDaEquipe("p-1", "eq-1");
+        pedido.setFormaEnvioId("f-pac");
+        pedido.setCodigoRastreio("AA123456789BR");
+        pedido.setStatusEnvio(StatusEnvio.POSTADO);
+        when(formaEnvioService.buscarPorId("f-pac")).thenReturn(Optional.of(formaPac()));
+
+        PedidoResponseDTO resposta = service.toResponseDTO(pedido);
+
+        assertEquals("f-pac", resposta.getFormaEnvioId());
+        assertEquals("Correios PAC", resposta.getFormaEnvioNome());
+        assertEquals("AA123456789BR", resposta.getCodigoRastreio());
+        assertEquals(StatusEnvio.POSTADO, resposta.getStatusEnvio());
+        assertEquals("https://rastreamento.correios.com.br/app/index.php?objeto=AA123456789BR",
+                resposta.getLinkRastreio());
+    }
+
+    @Test
+    void pedidoAntigoSemEnvioRespondeComCamposNulosEPreparando() {
+        Pedido antigo = pedidoDaEquipe("p-1", "eq-1");
+        antigo.setStatusEnvio(null); // documento gravado antes do RF15
+        when(formaEnvioService.buscarPorId(null)).thenReturn(Optional.empty());
+
+        PedidoResponseDTO resposta = service.toResponseDTO(antigo);
+
+        assertNull(resposta.getFormaEnvioId());
+        assertNull(resposta.getFormaEnvioNome());
+        assertNull(resposta.getCodigoRastreio());
+        assertNull(resposta.getDataPostagem());
+        assertNull(resposta.getPrevisaoEntrega());
+        assertNull(resposta.getLinkRastreio());
+        assertEquals(StatusEnvio.PREPARANDO, resposta.getStatusEnvio());
+    }
+
+    @Test
+    void formaApagadaDepoisNaoDerrubaAResposta() {
+        Pedido pedido = pedidoDaEquipe("p-1", "eq-1");
+        pedido.setFormaEnvioId("f-sumiu");
+        pedido.setCodigoRastreio("AA123456789BR");
+        when(formaEnvioService.buscarPorId("f-sumiu")).thenReturn(Optional.empty());
+
+        PedidoResponseDTO resposta = service.toResponseDTO(pedido);
+
+        assertEquals("f-sumiu", resposta.getFormaEnvioId());
+        assertNull(resposta.getFormaEnvioNome());
+        assertNull(resposta.getLinkRastreio());
+        assertEquals("AA123456789BR", resposta.getCodigoRastreio());
+    }
+
+    @Test
+    void formaDeEnvioInexistenteRecusaOEnvioSemSalvar() {
+        Pedido pedido = pedidoDaEquipe("p-1", "eq-1");
+        when(repository.findByIdAndEquipeId("p-1", "eq-1")).thenReturn(Optional.of(pedido));
+        when(formaEnvioService.buscarDisponivel("f-outra", "eq-1"))
+                .thenThrow(new RecursoNaoEncontradoException("Forma de envio não encontrada"));
+
+        PedidoEnvioRequestDTO dto = new PedidoEnvioRequestDTO();
+        dto.setFormaEnvioId("f-outra");
+        dto.setCodigoRastreio("AA123456789BR");
+
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> service.registrarEnvio("p-1", "user-1", Role.TECNICO, dto));
+        verify(repository, never()).save(any());
+        assertNull(pedido.getCodigoRastreio());
+    }
+
+    @Test
+    void clienteEOutraEquipeNaoRegistramEnvio() {
+        PedidoEnvioRequestDTO dto = new PedidoEnvioRequestDTO();
+        dto.setCodigoRastreio("AA123456789BR");
+
+        assertEquals("Cliente não possui permissão para alterar pedidos",
+                assertThrows(RuntimeException.class,
+                        () -> service.registrarEnvio("p-1", "cliente-1", Role.CLIENTE, dto)).getMessage());
+        assertThrows(SemEquipeException.class,
+                () -> service.registrarEnvio("p-1", "semEquipe", Role.TECNICO, dto));
+        assertEquals("Pedido não encontrado",
+                assertThrows(RuntimeException.class,
+                        () -> service.registrarEnvio("p-1", "user-9", Role.TECNICO, dto)).getMessage());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void edicaoComumDoPedidoNaoApagaOEnvioJaRegistrado() {
+        Pedido pedido = pedidoEmProducao();
+        pedido.setFormaEnvioId("f-pac");
+        pedido.setCodigoRastreio("AA123456789BR");
+        pedido.setStatusEnvio(StatusEnvio.POSTADO);
+
+        // PUT do formulário de edição: sem nenhum campo de envio
+        Pedido dados = new Pedido();
+        dados.setCliente("Cliente B");
+        dados.setProjeto("Projeto Z");
+        dados.setPrazo(LocalDate.now().plusDays(3));
+
+        Pedido salvo = service.atualizar("p-1", "user-1", Role.TECNICO, dados);
+
+        assertEquals("Projeto Z", salvo.getProjeto());
+        assertEquals("f-pac", salvo.getFormaEnvioId());
+        assertEquals("AA123456789BR", salvo.getCodigoRastreio());
+        assertEquals(StatusEnvio.POSTADO, salvo.getStatusEnvio());
+        verify(formaEnvioService, never()).buscarDisponivel(any(), any());
+    }
+
+    @Test
+    void toEntityMapeiaOsCamposDeEnvio() {
+        PedidoRequestDTO dto = new PedidoRequestDTO();
+        dto.setCliente("Cliente A");
+        dto.setProjeto("Projeto X");
+        dto.setPrazo(LocalDate.now().plusDays(5));
+        dto.setFormaEnvioId(" f-pac ");
+        dto.setCodigoRastreio("");
+        dto.setPrevisaoEntrega(LocalDate.of(2026, 11, 16));
+
+        Pedido pedido = service.toEntity(dto, "user-1");
+
+        assertEquals("f-pac", pedido.getFormaEnvioId());
+        assertNull(pedido.getCodigoRastreio());
+        assertNull(pedido.getDataPostagem());
+        assertEquals(LocalDate.of(2026, 11, 16), pedido.getPrevisaoEntrega());
     }
 }
