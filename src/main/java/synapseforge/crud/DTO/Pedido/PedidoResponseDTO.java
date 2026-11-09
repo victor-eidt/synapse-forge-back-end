@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import synapseforge.crud.infrastructure.entity.StatusEnvio;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 
 import java.time.LocalDate;
@@ -69,4 +70,21 @@ public class PedidoResponseDTO {
     private List<String> imagensReferenciaFileIds;
     @ArraySchema(arraySchema = @Schema(description = "IDs das imagens de referência no GridFS"), schema = @Schema(example = "6704a1c2e4b0f81a2c3d4e12"))
     private List<String> imagensReferenciaIds;
+
+    // Envio e rastreio (RF15). Nulos em pedidos sem envio registrado.
+    @Schema(description = "ID da forma de envio escolhida", example = "6704a1c2e4b0f81a2c3d4e21")
+    private String formaEnvioId;
+    @Schema(description = "Nome da forma de envio escolhida", example = "Correios PAC")
+    private String formaEnvioNome;
+    @Schema(description = "Código de rastreio do objeto", example = "AA123456789BR")
+    private String codigoRastreio;
+    @Schema(description = "Data de postagem (yyyy-MM-dd)", example = "2026-11-09")
+    private LocalDate dataPostagem;
+    @Schema(description = "Previsão de entrega (yyyy-MM-dd)", example = "2026-11-16")
+    private LocalDate previsaoEntrega;
+    @Schema(description = "Situação do envio", example = "POSTADO")
+    private StatusEnvio statusEnvio;
+    @Schema(description = "Link de rastreio montado a partir do modelo da forma de envio; nulo sem código ou sem rastreio",
+            example = "https://rastreamento.correios.com.br/app/index.php?objeto=AA123456789BR")
+    private String linkRastreio;
 }

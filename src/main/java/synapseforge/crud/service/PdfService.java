@@ -26,20 +26,29 @@ import com.lowagie.text.pdf.PdfWriter;
 
 import org.springframework.stereotype.Service;
 
+import synapseforge.crud.infrastructure.entity.FormaEnvio;
 import synapseforge.crud.infrastructure.entity.Pedido;
+import synapseforge.crud.infrastructure.entity.StatusEnvio;
 
 import java.awt.Color;
 
 import java.io.ByteArrayOutputStream;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Optional;
 
 @Service
 public class PdfService {
 
     @Autowired
     private GridFsTemplate gridFsTemplate;
+
+    @Autowired
+    private FormaEnvioService formaEnvioService;
+
+    private static final DateTimeFormatter DATA_BR = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public byte[] gerarOrdemServico(Pedido pedido) {
 
@@ -287,6 +296,102 @@ public class PdfService {
             document.add(modeloTable);
 
             document.add(new Paragraph(" "));
+
+            // =====================================================
+            // ENVIO (RF15)
+            // =====================================================
+            // Só entra quando há algum dado de envio: pedidos antigos e pedidos
+            // ainda sem envio registrado saem sem o bloco.
+
+            if (temDadosDeEnvio(pedido)) {
+
+                Paragraph secaoEnvio = new Paragraph(
+                        "ENVIO E RASTREIO",
+                        secaoFont
+                );
+
+                document.add(secaoEnvio);
+
+                document.add(new Paragraph(" "));
+
+                PdfPTable envioTable = new PdfPTable(2);
+
+                envioTable.setWidthPercentage(100);
+                envioTable.setWidths(new int[]{1, 3});
+
+                Optional<FormaEnvio> formaEnvio =
+                        formaEnvioService.buscarPorId(pedido.getFormaEnvioId());
+
+                adicionarLinha(
+                        envioTable,
+                        "Forma de envio",
+                        formaEnvio.map(FormaEnvio::getNome).orElse("Não informada"),
+                        labelFont,
+                        valorFont
+                );
+
+                formaEnvio.map(FormaEnvio::getTransportadora)
+                        .filter(transportadora -> !transportadora.isBlank())
+                        .ifPresent(transportadora -> adicionarLinha(
+                                envioTable,
+                                "Transportadora",
+                                transportadora,
+                                labelFont,
+                                valorFont
+                        ));
+
+                adicionarLinha(
+                        envioTable,
+                        "Situação",
+                        descreverStatusEnvio(pedido.getStatusEnvio()),
+                        labelFont,
+                        valorFont
+                );
+
+                adicionarLinha(
+                        envioTable,
+                        "Código de rastreio",
+                        pedido.getCodigoRastreio() != null
+                                ? pedido.getCodigoRastreio()
+                                : "Não informado",
+                        labelFont,
+                        valorFont
+                );
+
+                adicionarLinha(
+                        envioTable,
+                        "Data de postagem",
+                        formatarData(pedido.getDataPostagem()),
+                        labelFont,
+                        valorFont
+                );
+
+                adicionarLinha(
+                        envioTable,
+                        "Previsão de entrega",
+                        formatarData(pedido.getPrevisaoEntrega()),
+                        labelFont,
+                        valorFont
+                );
+
+                String linkRastreio = formaEnvio
+                        .map(f -> f.montarLinkRastreio(pedido.getCodigoRastreio()))
+                        .orElse(null);
+
+                if (linkRastreio != null) {
+                    adicionarLinha(
+                            envioTable,
+                            "Rastreio",
+                            linkRastreio,
+                            labelFont,
+                            valorFont
+                    );
+                }
+
+                document.add(envioTable);
+
+                document.add(new Paragraph(" "));
+            }
 
             // =====================================================
             // IMAGENS DE REFERÊNCIA
@@ -577,6 +682,33 @@ public class PdfService {
         } catch (Exception e) {
 
             throw new RuntimeException("Erro ao gerar PDF: " + e.getMessage());
+        }
+    }
+
+    private static boolean temDadosDeEnvio(Pedido pedido) {
+        return pedido.getFormaEnvioId() != null
+                || pedido.getCodigoRastreio() != null
+                || pedido.getDataPostagem() != null
+                || pedido.getPrevisaoEntrega() != null;
+    }
+
+    private static String formatarData(LocalDate data) {
+        return data == null ? "Não informada" : data.format(DATA_BR);
+    }
+
+    private static String descreverStatusEnvio(StatusEnvio status) {
+        if (status == null) {
+            return "Preparando envio";
+        }
+        switch (status) {
+            case POSTADO:
+                return "Postado";
+            case EM_TRANSITO:
+                return "Em trânsito";
+            case ENTREGUE:
+                return "Entregue";
+            default:
+                return "Preparando envio";
         }
     }
 

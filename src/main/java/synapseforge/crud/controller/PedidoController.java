@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
 import org.bson.types.ObjectId;
 
+import synapseforge.crud.DTO.Pedido.PedidoEnvioRequestDTO;
 import synapseforge.crud.DTO.Pedido.PedidoRequestDTO;
 import synapseforge.crud.DTO.Pedido.PedidoResponseDTO;
 import synapseforge.crud.infrastructure.entity.Pedido;
@@ -449,6 +450,41 @@ public class PedidoController {
                         id,
                         usuarioId,
                         role
+                );
+
+        return service.toResponseDTO(
+                pedido
+        );
+    }
+
+
+    // =========================================================
+    // REGISTRAR ENVIO
+    // =========================================================
+
+    @PreAuthorize(
+            "hasAnyRole('TECNICO', 'GERENTE', 'ADMIN')"
+    )
+    @Operation(summary = "Registrar envio", description = "Grava forma de envio, código de rastreio, data de postagem e previsão de entrega. Com código informado o envio passa a POSTADO; o link de rastreio volta montado na resposta.")
+    @PatchMapping("/{id}/envio")
+    public PedidoResponseDTO registrarEnvio(
+            @Parameter(description = "ID do pedido", example = "6704a1c2e4b0f81a2c3d4e01") @PathVariable String id,
+            @RequestBody @Valid PedidoEnvioRequestDTO dto,
+            Authentication auth
+    ) {
+
+        String usuarioId =
+                (String) auth.getPrincipal();
+
+        Role role =
+                getRole(auth);
+
+        Pedido pedido =
+                service.registrarEnvio(
+                        id,
+                        usuarioId,
+                        role,
+                        dto
                 );
 
         return service.toResponseDTO(

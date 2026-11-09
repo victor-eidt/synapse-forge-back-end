@@ -2,15 +2,19 @@ package synapseforge.crud.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import synapseforge.crud.DTO.Pedido.PedidoEnvioRequestDTO;
 import synapseforge.crud.DTO.Pedido.PedidoRequestDTO;
 import synapseforge.crud.DTO.Pedido.PedidoResponseDTO;
+import synapseforge.crud.infrastructure.entity.FormaEnvio;
 import synapseforge.crud.infrastructure.entity.Pedido;
 import synapseforge.crud.infrastructure.entity.Role;
+import synapseforge.crud.infrastructure.entity.StatusEnvio;
 import synapseforge.crud.infrastructure.entity.StatusPedido;
 import synapseforge.crud.infrastructure.entity.User;
 import synapseforge.crud.infrastructure.repository.PedidoRepository;
 import synapseforge.crud.infrastructure.repository.UserRepository;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -43,6 +47,9 @@ public class PedidoService {
     @Autowired
     private org.springframework.data.mongodb.gridfs.GridFsTemplate gridFsTemplate;
 
+    @Autowired
+    private FormaEnvioService formaEnvioService;
+
 
     // =========================================================
     // CONVERSÃO DTO -> ENTITY
@@ -71,6 +78,12 @@ public class PedidoService {
         pedido.setPrecoFinal(dto.getPrecoFinal());
         pedido.setPrazo(dto.getPrazo());
         pedido.setStatus(dto.getStatus());
+
+        // envio: opcional no cadastro; a forma é validada em criar()/atualizar()
+        pedido.setFormaEnvioId(limparTexto(dto.getFormaEnvioId()));
+        pedido.setCodigoRastreio(limparTexto(dto.getCodigoRastreio()));
+        pedido.setDataPostagem(dto.getDataPostagem());
+        pedido.setPrevisaoEntrega(dto.getPrevisaoEntrega());
 
         return pedido;
     }
@@ -178,6 +191,19 @@ public class PedidoService {
             }
         }
 
+        // Forma de envio resolvida na leitura: pedido antigo (sem envio) ou forma
+        // apagada depois não derrubam a resposta; nome e link ficam nulos.
+        Optional<FormaEnvio> formaEnvio =
+                formaEnvioService.buscarPorId(pedido.getFormaEnvioId());
+
+        String formaEnvioNome =
+                formaEnvio.map(FormaEnvio::getNome).orElse(null);
+
+        String linkRastreio =
+                formaEnvio
+                        .map(f -> f.montarLinkRastreio(pedido.getCodigoRastreio()))
+                        .orElse(null);
+
         return new PedidoResponseDTO(
                 pedido.getId(),
                 pedido.getClienteId(),
@@ -203,7 +229,16 @@ public class PedidoService {
                 pedido.getAtualizadoEm(),
                 objeto3DFileId,
                 imagensBase64,
-                pedido.getImagensReferenciaFileIds()
+                pedido.getImagensReferenciaFileIds(),
+                pedido.getFormaEnvioId(),
+                formaEnvioNome,
+                pedido.getCodigoRastreio(),
+                pedido.getDataPostagem(),
+                pedido.getPrevisaoEntrega(),
+                pedido.getStatusEnvio() == null
+                        ? StatusEnvio.PREPARANDO
+                        : pedido.getStatusEnvio(),
+                linkRastreio
         );
     }
 
@@ -219,6 +254,17 @@ public class PedidoService {
 
         pedido.setStatus(
                 StatusPedido.MODELAGEM
+        );
+
+        // envio informado já no cadastro: forma precisa existir para a equipe
+        if (pedido.getFormaEnvioId() != null) {
+            formaEnvioService.buscarDisponivel(
+                    pedido.getFormaEnvioId(),
+                    pedido.getEquipeId()
+            );
+        }
+        pedido.setStatusEnvio(
+                statusEnvioPara(pedido.getCodigoRastreio(), null, null)
         );
 
         pedido.setCriadoEm(
@@ -558,6 +604,8 @@ public class PedidoService {
 
         copiarDadosOrcamento(pedido, dados);
 
+        copiarDadosEnvio(pedido, dados);
+
         validarCliente(pedido);
 
         pedido.setAtualizadoEm(
@@ -635,6 +683,8 @@ public class PedidoService {
         );
 
         copiarDadosOrcamento(pedido, dados);
+
+        copiarDadosEnvio(pedido, dados);
 
         validarCliente(pedido);
 
@@ -783,6 +833,152 @@ public class PedidoService {
                                         "Pedido não encontrado"
                                 )
                 );
+    }
+
+
+    // =========================================================
+    // REGISTRAR ENVIO
+    // =========================================================
+    //
+    // Substitui o bloco de envio inteiro pelo que veio no PATCH: forma, código,
+    // data de postagem e previsão. Com código informado o envio passa a POSTADO
+    // (salvo status explícito no corpo); sem código volta a PREPARANDO.
+    //
+
+    public Pedido registrarEnvio(
+            String id,
+            String usuarioId,
+            Role role,
+            PedidoEnvioRequestDTO dto
+    ) {
+
+        Pedido pedido =
+                buscarPedidoParaEdicao(
+                        id,
+                        usuarioId,
+                        role
+                );
+
+        String formaEnvioId =
+                limparTexto(dto.getFormaEnvioId());
+
+        if (formaEnvioId != null) {
+            // forma inexistente, inativa ou de outra equipe -> 404
+            formaEnvioService.buscarDisponivel(
+                    formaEnvioId,
+                    pedido.getEquipeId()
+            );
+        }
+
+        String codigoRastreio =
+                limparTexto(dto.getCodigoRastreio());
+
+        pedido.setFormaEnvioId(formaEnvioId);
+        pedido.setCodigoRastreio(codigoRastreio);
+        pedido.setPrevisaoEntrega(dto.getPrevisaoEntrega());
+
+        // código sem data de postagem: a postagem é hoje
+        pedido.setDataPostagem(
+                dto.getDataPostagem() == null && codigoRastreio != null
+                        ? LocalDate.now()
+                        : dto.getDataPostagem()
+        );
+
+        pedido.setStatusEnvio(
+                statusEnvioPara(
+                        codigoRastreio,
+                        dto.getStatusEnvio(),
+                        pedido.getStatusEnvio()
+                )
+        );
+
+        pedido.setAtualizadoEm(
+                LocalDateTime.now()
+        );
+
+        return repository.save(pedido);
+    }
+
+
+    // Status do envio resultante: o explícito vence; senão, código informado leva a
+    // POSTADO quando o envio ainda estava em preparação (não regride EM_TRANSITO ou
+    // ENTREGUE); sem código, PREPARANDO.
+    private static StatusEnvio statusEnvioPara(
+            String codigoRastreio,
+            StatusEnvio explicito,
+            StatusEnvio atual
+    ) {
+
+        if (explicito != null) {
+            return explicito;
+        }
+
+        if (codigoRastreio == null) {
+            return StatusEnvio.PREPARANDO;
+        }
+
+        if (atual == null || atual == StatusEnvio.PREPARANDO) {
+            return StatusEnvio.POSTADO;
+        }
+
+        return atual;
+    }
+
+
+    // =========================================================
+    // COPIAR DADOS DE ENVIO (PUT)
+    // =========================================================
+    //
+    // No PUT só o que veio preenchido sobrescreve: a edição comum do pedido (que
+    // não mostra o envio) não pode apagar forma e código já registrados. O
+    // formulário multipart nem envia estes campos, então nada muda por ali.
+    //
+
+    private void copiarDadosEnvio(Pedido destino, Pedido origem) {
+
+        boolean mudou = false;
+
+        if (origem.getFormaEnvioId() != null) {
+            formaEnvioService.buscarDisponivel(
+                    origem.getFormaEnvioId(),
+                    destino.getEquipeId()
+            );
+            destino.setFormaEnvioId(origem.getFormaEnvioId());
+            mudou = true;
+        }
+
+        if (origem.getCodigoRastreio() != null) {
+            destino.setCodigoRastreio(origem.getCodigoRastreio());
+            mudou = true;
+        }
+
+        if (origem.getDataPostagem() != null) {
+            destino.setDataPostagem(origem.getDataPostagem());
+        }
+
+        if (origem.getPrevisaoEntrega() != null) {
+            destino.setPrevisaoEntrega(origem.getPrevisaoEntrega());
+        }
+
+        if (mudou || destino.getStatusEnvio() == null) {
+            destino.setStatusEnvio(
+                    statusEnvioPara(
+                            destino.getCodigoRastreio(),
+                            null,
+                            destino.getStatusEnvio()
+                    )
+            );
+        }
+    }
+
+
+    private static String limparTexto(String valor) {
+
+        if (valor == null || valor.isBlank()) {
+            return null;
+        }
+
+        return valor.trim();
     }
 
 

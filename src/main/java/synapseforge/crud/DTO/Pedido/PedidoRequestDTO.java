@@ -63,4 +63,15 @@ public class PedidoRequestDTO {
 
     @Schema(description = "Ignorado: todo pedido nasce em MODELAGEM e a etapa só muda pelos endpoints de status", example = "MODELAGEM")
     private StatusPedido status;
+
+    // Envio (RF15): opcionais. Na edição, só os campos informados são sobrescritos;
+    // para alterar o envio em separado existe o PATCH /pedidos/{id}/envio.
+    @Schema(description = "ID da forma de envio (GET /formas-envio)", example = "6704a1c2e4b0f81a2c3d4e21")
+    private String formaEnvioId;
+    @Schema(description = "Código de rastreio do objeto", example = "AA123456789BR")
+    private String codigoRastreio;
+    @Schema(description = "Data de postagem (yyyy-MM-dd)", example = "2026-11-09")
+    private LocalDate dataPostagem;
+    @Schema(description = "Previsão de entrega (yyyy-MM-dd)", example = "2026-11-16")
+    private LocalDate previsaoEntrega;
 }
