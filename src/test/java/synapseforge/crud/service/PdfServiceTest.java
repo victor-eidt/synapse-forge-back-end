@@ -10,13 +10,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
+import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.parser.PdfTextExtractor;
+import synapseforge.crud.infrastructure.entity.FormaEnvio;
 import synapseforge.crud.infrastructure.entity.Pedido;
+import synapseforge.crud.infrastructure.entity.StatusEnvio;
 
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -27,6 +32,9 @@ class PdfServiceTest {
 
     @Mock
     GridFsTemplate gridFsTemplate;
+
+    @Mock
+    FormaEnvioService formaEnvioService;
 
     @InjectMocks
     PdfService service;
@@ -73,6 +81,95 @@ class PdfServiceTest {
         byte[] pdf = service.gerarOrdemServico(pedido);
         assertNotNull(pdf);
         assertTrue(pdf.length > 100);
+    }
+
+    // =========================================================
+    // ENVIO E RASTREIO (RF15)
+    // =========================================================
+
+    private static String textoDoPdf(byte[] pdf) throws Exception {
+        PdfReader reader = new PdfReader(pdf);
+        PdfTextExtractor extractor = new PdfTextExtractor(reader);
+        StringBuilder texto = new StringBuilder();
+        for (int pagina = 1; pagina <= reader.getNumberOfPages(); pagina++) {
+            texto.append(extractor.getTextFromPage(pagina)).append('\n');
+        }
+        reader.close();
+        return texto.toString();
+    }
+
+    private static FormaEnvio formaPac() {
+        FormaEnvio forma = new FormaEnvio();
+        forma.setId("f-pac");
+        forma.setNome("Correios PAC");
+        forma.setTransportadora("Correios");
+        forma.setUrlRastreioTemplate("https://rastreamento.correios.com.br/app/index.php?objeto={codigo}");
+        forma.setAtivo(true);
+        return forma;
+    }
+
+    @Test
+    void ordemDeServicoTrazOBlocoDeEnvioComFormaCodigoDatasELink() throws Exception {
+        pedido.setFormaEnvioId("f-pac");
+        pedido.setCodigoRastreio("AA123456789BR");
+        pedido.setDataPostagem(LocalDate.of(2026, 11, 9));
+        pedido.setPrevisaoEntrega(LocalDate.of(2026, 11, 16));
+        pedido.setStatusEnvio(StatusEnvio.POSTADO);
+        when(formaEnvioService.buscarPorId("f-pac")).thenReturn(Optional.of(formaPac()));
+
+        String texto = textoDoPdf(service.gerarOrdemServico(pedido));
+
+        assertTrue(texto.contains("ENVIO E RASTREIO"));
+        assertTrue(texto.contains("Correios PAC"));
+        assertTrue(texto.contains("Correios"));
+        assertTrue(texto.contains("Postado"));
+        assertTrue(texto.contains("AA123456789BR"));
+        assertTrue(texto.contains("09/11/2026"));
+        assertTrue(texto.contains("16/11/2026"));
+        assertTrue(texto.contains("objeto=AA123456789BR"));
+    }
+
+    @Test
+    void pedidoSemDadosDeEnvioNaoTemOBloco() throws Exception {
+        // pedido antigo: nada de envio preenchido (statusEnvio nulo no documento)
+        pedido.setStatusEnvio(null);
+
+        String texto = textoDoPdf(service.gerarOrdemServico(pedido));
+
+        assertFalse(texto.contains("ENVIO E RASTREIO"));
+        assertFalse(texto.contains("Código de rastreio"));
+        verify(formaEnvioService, never()).buscarPorId(any());
+    }
+
+    @Test
+    void envioSemCodigoMostraNaoInformadoESemLink() throws Exception {
+        pedido.setFormaEnvioId("f-ret");
+        FormaEnvio retirada = new FormaEnvio();
+        retirada.setId("f-ret");
+        retirada.setNome("Retirada no ateliê");
+        retirada.setAtivo(true);
+        when(formaEnvioService.buscarPorId("f-ret")).thenReturn(Optional.of(retirada));
+
+        String texto = textoDoPdf(service.gerarOrdemServico(pedido));
+
+        assertTrue(texto.contains("ENVIO E RASTREIO"));
+        assertTrue(texto.contains("Retirada no ateliê"));
+        assertTrue(texto.contains("Preparando envio"));
+        assertTrue(texto.contains("Não informado"));
+        assertFalse(texto.contains("Rastreio http"));
+        assertFalse(texto.contains("https://"));
+    }
+
+    @Test
+    void formaApagadaDepoisNaoDerrubaAGeracaoDoPdf() throws Exception {
+        pedido.setFormaEnvioId("f-sumiu");
+        pedido.setCodigoRastreio("AA123456789BR");
+        when(formaEnvioService.buscarPorId("f-sumiu")).thenReturn(Optional.empty());
+
+        String texto = textoDoPdf(service.gerarOrdemServico(pedido));
+
+        assertTrue(texto.contains("Não informada"));
+        assertTrue(texto.contains("AA123456789BR"));
     }
 
     @Test
